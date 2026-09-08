@@ -1,3 +1,4 @@
+import express, { type NextFunction, type Request, type Response } from "express";
 import { HumanMessage } from "@langchain/core/messages";
 import { buildGraph } from "./agent/graph";
 import { summarizeFlow } from "./agent/flow";
@@ -13,56 +14,65 @@ let graph: ReturnType<typeof buildGraph> | undefined;
 const getGraph = () => (graph ??= buildGraph());
 
 const port = Number(process.env.PORT ?? 3000);
+const app = express();
 
-Bun.serve({
-  port,
-  routes: {
-    "/health": () => Response.json({ ok: true }),
-    "/chat": {
-      POST: async (req) => {
-        const started = performance.now();
-        let body: { message?: string };
-        try {
-          body = (await req.json()) as { message?: string };
-        } catch {
-          return Response.json({ error: "invalid JSON body" }, { status: 400 });
-        }
-        if (!body.message) {
-          return Response.json({ error: "missing 'message' field" }, { status: 400 });
-        }
+app.use(express.json());
 
-        try {
-          let traceId: string | undefined;
-          const responseBody = await withSpan(SpanName.agent, async (span) => {
-            span.setAttribute("user.message.length", body.message!.length);
-            traceId = span.spanContext().traceId;
-            const result = await getGraph().invoke({
-              messages: [new HumanMessage(body.message!)],
-            });
-            const flow = summarizeFlow(result);
-            span.setAttribute("flow.complete", flow.isCompleteFlow);
-            span.setAttribute("flow.steps", flow.steps.join(" → "));
-
-            return {
-              reply: result.finalAnswer,
-              flow: flow.steps,
-              traceId,
-              llmCalls: result.llmCalls,
-              retrievals: result.retrievals,
-              toolCalls: result.toolCalls,
-              durationMs: Math.round(performance.now() - started),
-            };
-          });
-          return Response.json(responseBody);
-        } catch (err) {
-          return Response.json(
-            { error: err instanceof Error ? err.message : String(err) },
-            { status: 500 },
-          );
-        }
-      },
-    },
-  },
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
 });
 
-console.log(`ai-agent listening on http://localhost:${port}`);
+app.post("/chat", async (req, res) => {
+  const started = performance.now();
+  const body = req.body as { message?: string } | undefined;
+
+  if (body == null || typeof body !== "object" || Array.isArray(body)) {
+    res.status(400).json({ error: "invalid JSON body" });
+    return;
+  }
+  if (!body.message) {
+    res.status(400).json({ error: "missing 'message' field" });
+    return;
+  }
+
+  try {
+    let traceId: string | undefined;
+    const responseBody = await withSpan(SpanName.agent, async (span) => {
+      span.setAttribute("user.message.length", body.message!.length);
+      traceId = span.spanContext().traceId;
+      const result = await getGraph().invoke({
+        messages: [new HumanMessage(body.message!)],
+      });
+      const flow = summarizeFlow(result);
+      span.setAttribute("flow.complete", flow.isCompleteFlow);
+      span.setAttribute("flow.steps", flow.steps.join(" → "));
+
+      return {
+        reply: result.finalAnswer,
+        flow: flow.steps,
+        traceId,
+        llmCalls: result.llmCalls,
+        retrievals: result.retrievals,
+        toolCalls: result.toolCalls,
+        durationMs: Math.round(performance.now() - started),
+      };
+    });
+    res.json(responseBody);
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+  if (err instanceof SyntaxError) {
+    res.status(400).json({ error: "invalid JSON body" });
+    return;
+  }
+  next(err);
+});
+
+app.listen(port, () => {
+  console.log(`ai-agent listening on http://localhost:${port}`);
+});
