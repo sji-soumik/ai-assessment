@@ -1,6 +1,10 @@
+import { SpanStatusCode } from "@opentelemetry/api";
 import { ToolMessage } from "@langchain/core/messages";
 import { toAgentMessages } from "../messages";
 import type { AgentMessage, AgentState, ToolCallRecord } from "../state";
+import { setToolSpanAttrs } from "../../obs/attrs";
+import { SpanName } from "../../obs/names";
+import { withSpan } from "../../obs/spans";
 import { getMortgageRate, MORTGAGE_RATE_TOOL } from "../../tools/getMortgageRate";
 import { truncate } from "./llm";
 import { pendingToolCalls } from "./pending";
@@ -21,39 +25,49 @@ export async function toolNode(state: AgentState): Promise<Partial<AgentState>> 
   const records: ToolCallRecord[] = [];
 
   for (const call of pending) {
-    const startedAt = Date.now();
-    const started = performance.now();
+    await withSpan(SpanName.toolCall, async (span) => {
+      span.setAttribute("tool.name", call.name);
+      const startedAt = Date.now();
+      const started = performance.now();
+      let record: ToolCallRecord;
 
-    try {
-      const result = runTool(call.name, call.args);
-      const latencyMs = Math.round(performance.now() - started);
-      records.push({
-        name: call.name,
-        arguments: call.args,
-        startedAt,
-        endedAt: Date.now(),
-        latencyMs,
-        result: truncate(result, 300),
-        status: "success",
-      });
-      console.log(`[tool] ${call.name} ok latency=${latencyMs}ms result=${truncate(result, 80)}`);
-      messages.push(toToolMessage(result, call.id, call.name));
-    } catch (err) {
-      const latencyMs = Math.round(performance.now() - started);
-      const error = err instanceof Error ? err.message : String(err);
-      records.push({
-        name: call.name,
-        arguments: call.args,
-        startedAt,
-        endedAt: Date.now(),
-        latencyMs,
-        result: error,
-        status: "error",
-        error,
-      });
-      console.error(`[tool] ${call.name} error after ${latencyMs}ms: ${error}`);
-      messages.push(toToolMessage(`Tool error: ${error}`, call.id, call.name));
-    }
+      try {
+        const result = runTool(call.name, call.args);
+        const latencyMs = Math.round(performance.now() - started);
+        record = {
+          name: call.name,
+          arguments: call.args,
+          startedAt,
+          endedAt: Date.now(),
+          latencyMs,
+          result: truncate(result, 300),
+          status: "success",
+        };
+        console.log(`[tool] ${call.name} ok latency=${latencyMs}ms result=${truncate(result, 80)}`);
+        messages.push(toToolMessage(result, call.id, call.name));
+      } catch (err) {
+        const latencyMs = Math.round(performance.now() - started);
+        const error = err instanceof Error ? err.message : String(err);
+        record = {
+          name: call.name,
+          arguments: call.args,
+          startedAt,
+          endedAt: Date.now(),
+          latencyMs,
+          result: error,
+          status: "error",
+          error,
+        };
+        console.error(`[tool] ${call.name} error after ${latencyMs}ms: ${error}`);
+        messages.push(toToolMessage(`Tool error: ${error}`, call.id, call.name));
+      }
+
+      setToolSpanAttrs(span, record);
+      if (record.status === "error") {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: record.error });
+      }
+      records.push(record);
+    });
   }
 
   return { messages: toAgentMessages(messages), toolCalls: records };

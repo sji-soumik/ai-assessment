@@ -2,15 +2,30 @@
 import { HumanMessage } from "@langchain/core/messages";
 import { buildGraph } from "./agent/graph";
 import { summarizeFlow } from "./agent/flow";
+import { flushTelemetry, initTelemetry, shutdownTelemetry } from "./obs/otel";
+import { SpanName } from "./obs/names";
+import { withSpan } from "./obs/spans";
+
+initTelemetry();
 
 const question = process.argv.slice(2).join(" ").trim() || "What is the current base rate?";
 const graph = buildGraph();
 
 console.log(`User: ${question}\n`);
 const started = performance.now();
-const result = await graph.invoke({ messages: [new HumanMessage(question)] });
+
+let traceId: string | undefined;
+
+const result = await withSpan(SpanName.agent, async (span) => {
+  span.setAttribute("user.message.length", question.length);
+  traceId = span.spanContext().traceId;
+  return graph.invoke({ messages: [new HumanMessage(question)] });
+});
+
 const flow = summarizeFlow(result);
 console.log(`Agent: ${result.finalAnswer}\n`);
+
+if (traceId) console.log(`traceId: ${traceId}`);
 
 console.log(`--- flow (Phase 5) ---`);
 console.log(`steps: ${flow.steps.join(" → ")}`);
@@ -44,3 +59,6 @@ if (result.toolCalls.length > 0) {
 }
 
 console.log(`total: ${Math.round(performance.now() - started)}ms`);
+
+await flushTelemetry();
+await shutdownTelemetry();

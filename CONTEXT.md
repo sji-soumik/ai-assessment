@@ -40,6 +40,18 @@ _Avoid_: passage, segment, fragment.
 **Top-K**:
 The number of highest-scoring **Chunks** returned by a retrieval (default 4).
 
+## Observability language
+
+**Trace**:
+One end-to-end record of a single user request through the agent — from the
+incoming question to the final answer. Identified by a **trace id**.
+_Avoid_: session, log (a Trace is the distributed-tracing unit, not a log line).
+
+**Span**:
+One timed operation inside a **Trace** — e.g. an LLM call, a retrieval, a tool
+lookup, or the root agent span that wraps the whole request.
+_Avoid_: step, event (Spans nest; they are not flat log events).
+
 ## Flagged ambiguities
 
 **"base rate" vs the knowledge base**: A question about the *number* ("what is

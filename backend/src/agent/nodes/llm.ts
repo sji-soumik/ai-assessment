@@ -5,6 +5,9 @@ import type {
 } from "@langchain/core/language_models/chat_models";
 import type { BaseMessage } from "@langchain/core/messages";
 import { MODEL_ID, PROVIDER } from "../../llm";
+import { setLlmSpanAttrs } from "../../obs/attrs";
+import { llmSpanName } from "../../obs/names";
+import { withSpan } from "../../obs/spans";
 import { toAgentMessage } from "../messages";
 import { BINDABLE_TOOLS } from "../tools";
 import type { AgentMessage, AgentState, LLMCallRecord } from "../state";
@@ -55,34 +58,52 @@ export function textOf(message: AgentMessage | undefined): string {
 const withTools = (options: { tools: typeof BINDABLE_TOOLS }): BaseChatModelCallOptions =>
   options as unknown as BaseChatModelCallOptions;
 
-/** Shared LLM invocation with internal capture (Phase 2 seam — no OTel yet). */
+/** Shared LLM invocation with internal capture; wrapped in an OTel span (Phase 6+). */
 export function makeLlmNode(model: BaseChatModel, purpose: LLMCallRecord["purpose"]) {
-  return async function llmNode(state: AgentState): Promise<Partial<AgentState>> {
-    const input = [new SystemMessage(systemPrompt(purpose)), ...state.messages] as BaseMessage[];
-    const started = performance.now();
+  const spanName = llmSpanName(purpose);
 
-    try {
-      const response = (await model.invoke(input, withTools({ tools: BINDABLE_TOOLS }))) as AIMessage;
-      const record: LLMCallRecord = {
-        purpose,
-        model: MODEL_ID,
-        provider: PROVIDER,
-        input: truncate(textOf(state.messages.at(-1))),
-        output: truncate(textOf(toAgentMessage(response))),
-        inputTokens: response.usage_metadata?.input_tokens ?? 0,
-        outputTokens: response.usage_metadata?.output_tokens ?? 0,
-        latencyMs: Math.round(performance.now() - started),
-        status: "success",
-      };
-      console.log(
-        `[llm] ${record.purpose} ok model=${record.model} tokens=${record.inputTokens}->${record.outputTokens} latency=${record.latencyMs}ms`,
-      );
-      return { messages: [toAgentMessage(response)], llmCalls: [record] };
-    } catch (err) {
-      const latencyMs = Math.round(performance.now() - started);
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[llm] ${purpose} error after ${latencyMs}ms: ${message}`);
-      throw err;
-    }
+  return async function llmNode(state: AgentState): Promise<Partial<AgentState>> {
+    return withSpan(spanName, async (span) => {
+      const input = [new SystemMessage(systemPrompt(purpose)), ...state.messages] as BaseMessage[];
+      const started = performance.now();
+
+      try {
+        const response = (await model.invoke(input, withTools({ tools: BINDABLE_TOOLS }))) as AIMessage;
+        const record: LLMCallRecord = {
+          purpose,
+          model: MODEL_ID,
+          provider: PROVIDER,
+          input: truncate(textOf(state.messages.at(-1))),
+          output: truncate(textOf(toAgentMessage(response))),
+          inputTokens: response.usage_metadata?.input_tokens ?? 0,
+          outputTokens: response.usage_metadata?.output_tokens ?? 0,
+          latencyMs: Math.round(performance.now() - started),
+          status: "success",
+        };
+        setLlmSpanAttrs(span, record);
+        console.log(
+          `[llm] ${record.purpose} ok model=${record.model} tokens=${record.inputTokens}->${record.outputTokens} latency=${record.latencyMs}ms`,
+        );
+        return { messages: [toAgentMessage(response)], llmCalls: [record] };
+      } catch (err) {
+        const latencyMs = Math.round(performance.now() - started);
+        const message = err instanceof Error ? err.message : String(err);
+        const record: LLMCallRecord = {
+          purpose,
+          model: MODEL_ID,
+          provider: PROVIDER,
+          input: truncate(textOf(state.messages.at(-1))),
+          output: "",
+          inputTokens: 0,
+          outputTokens: 0,
+          latencyMs,
+          status: "error",
+          error: message,
+        };
+        setLlmSpanAttrs(span, record);
+        console.error(`[llm] ${purpose} error after ${latencyMs}ms: ${message}`);
+        throw err;
+      }
+    });
   };
 }

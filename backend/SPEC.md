@@ -10,10 +10,10 @@ Rule #1 from the plan: **build the working agent first — no observability unti
 - [x] **P3 — Retrieval/RAG**: PostgreSQL + pgvector; ingestion, chunking, embeddings, similarity search, top-K → LLM. Captures query/topK/chunk+document ids/scores/latency into `state.retrievals`
 - [x] **P4 — Tool calling**: `getMortgageRate()` (in-process rate table; `getRateSheet` deliberately dropped — see decisions). Captures name/args/start/end/latency/result/status/error into `state.toolCalls`
 - [x] **P5 — Complete flow**: one request triggers multiple AI operations (LLM → retrieval → tool → LLM reasoning → answer). Flow summary in `state` capture + `flow` API field + CLI printout
-- [ ] **P6 — OpenTelemetry**: root trace + child spans (`agent`, `llm.call`, `retrieval`, `tool.call`, `llm.reasoning`, `final.response`)
-- [ ] **P7 — LLM span attrs**: model, provider, tokens (in/out/total), latency, request/response, status, error, **cost**
-- [ ] **P8 — Retrieval span attrs**: query, top_k, document_count, document_ids, similarity_scores, latency, status
-- [ ] **P9 — Tool span attrs**: name, arguments, latency, status, result, error
+- [x] **P6 — OpenTelemetry**: root trace + child spans (`agent`, `llm.call`, `retrieval`, `tool.call`, `llm.reasoning`, `final.response`) via explicit `withSpan` wrappers in `src/obs/`
+- [x] **P7 — LLM span attrs**: model, provider, tokens (in/out/total), latency, request/response, status, error, **cost** (`gen_ai.*` + `llm.cost_usd`)
+- [x] **P8 — Retrieval span attrs**: query, top_k, document_count, document_ids, similarity_scores, latency, status
+- [x] **P9 — Tool span attrs**: name, arguments, latency, status, result, error
 - [ ] **P10 — Trace backend**: **Arize Phoenix** (pick-one rule; see decision below). Langfuse = documented alt
 - [ ] **P11 — End-to-end trace demo** ⭐ (the main demo)
 - [ ] **P12 — Prometheus**: `agent_requests_total`, `agent_request_duration_seconds`, `llm_requests_total`, `llm_latency_seconds`, `llm_input_tokens_total`, `llm_output_tokens_total`, `tool_requests_total`, `tool_latency_seconds`, `tool_errors_total`, `retrieval_requests_total`, `retrieval_latency_seconds` (+ `llm_cost_dollars_total`, `llm_timeouts_total`)

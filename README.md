@@ -2,7 +2,7 @@
 
 A TypeScript LangGraph agent for mortgage-lending questions (base rates, rate sheets, products), with a planned full observability stack: per-request traces in Arize Phoenix and Prometheus/Grafana dashboards.
 
-**Build order:** working agent first, observability later. Phases 1–5 (conversation through the complete multi-operation flow) are done. OpenTelemetry and metrics are not wired yet.
+**Build order:** working agent first, observability later. Phases 1–9 (agent + OpenTelemetry spans with full attributes) are done. Phoenix export, Prometheus, and Grafana are next.
 
 ## Current status
 
@@ -13,7 +13,8 @@ A TypeScript LangGraph agent for mortgage-lending questions (base rates, rate sh
 | P3 | PostgreSQL + pgvector RAG; ingest / chunk / embed / similarity search / top-K; query, chunk+document ids, scores, latency captured | Done |
 | P4 | `getMortgageRate` tool (in-process rate table); name / args / start / end / latency / result / status / error captured | Done |
 | P5 | Complete flow: one request can run LLM → retrieval → tool → reasoning → answer; `flow` summary on CLI + `/chat` | Done |
-| P6–P18 | OTel traces, Phoenix, Prometheus, Grafana, failure tests | Not started |
+| P6–P9 | OpenTelemetry: root `agent` span + children (`llm.call`, `retrieval`, `tool.call`, `llm.reasoning`, `final.response`) with full attrs + cost | Done |
+| P10–P18 | Phoenix demo, Prometheus, Grafana, failure tests | Not started |
 
 One request can trigger **multiple AI operations** before the final answer. Example that exercises the full path:
 
@@ -39,6 +40,10 @@ USER ──POST /chat {message}──► Bun server :3000
                           Claude Opus 5      retrieve → pgvector (chunks)
                                              getMortgageRate → rate table
               llmCalls / retrievals / toolCalls captured in graph state
+                                 │
+                    OpenTelemetry (explicit withSpan)
+                                 │
+                         OTLP → Phoenix :6006
 ```
 
 **Target** (after later phases)
@@ -87,9 +92,10 @@ bun install
 cp .env.example .env
 # set ANTHROPIC_API_KEY in .env (DATABASE_URL is pre-filled for the local container)
 
-# P3 RAG: start pgvector and ingest the policy corpus
+# P3 RAG + P6 traces: start pgvector and Phoenix
 docker compose -f ops/docker-compose.yml up -d
 bun run ingest
+# OTEL_EXPORTER_OTLP_ENDPOINT is pre-filled in .env.example
 ```
 
 Bun loads `.env` automatically. Never commit `.env`.
@@ -188,6 +194,7 @@ ai-assessment/
     │   ├── chat.ts           # CLI one-shot conversation
     │   ├── rag/              # embeddings, chunking, pgvector db, ingest, similarity search
     │   ├── tools/            # getMortgageRate (in-process rate table)
+    │   ├── obs/              # otel.ts, spans.ts, attrs.ts, cost.ts
     │   └── agent/
     │       ├── graph.ts      # StateGraph wiring
     │       ├── flow.ts       # Phase 5 flow summary (llm → retrieval → tool → reasoning)
@@ -197,13 +204,14 @@ ai-assessment/
     └── tests/                # graph, RAG, and tool tests + live/DB smoke tests
 ```
 
-Later phases add `obs/`, `chaos.ts`, and extend `ops/` (Prometheus, Grafana).
+Later phases add `chaos.ts`, extend `ops/` (Prometheus, Grafana), and metrics in `obs/`.
 
 ## What's next
 
 Work phase-by-phase from [`backend/SPEC.md`](backend/SPEC.md). Next up:
 
-1. **P6+** — OpenTelemetry spans, Phoenix, Prometheus, Grafana, failure scenarios
+1. **P10–P11** — Phoenix trace backend + end-to-end trace demo
+2. **P12+** — Prometheus metrics, Grafana dashboards, failure scenarios
 
 The final README (P18) will add a live trace walkthrough, Grafana screenshots, failure-scenario results, and a fresh-checkout runbook.
 
