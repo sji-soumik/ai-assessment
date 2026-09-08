@@ -1,4 +1,8 @@
+import type { BaseMessage, MessageStructure, MessageToolSet, MessageType } from "@langchain/core/messages";
 import { Annotation, MessagesAnnotation } from "@langchain/langgraph";
+
+/** Graph message type — matches MessagesAnnotation's MessageToolSet envelope. */
+export type AgentMessage = BaseMessage<MessageStructure<MessageToolSet>, MessageType>;
 
 /**
  * Internal capture of a single LLM call (Phase 2 requirement):
