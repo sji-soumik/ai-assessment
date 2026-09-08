@@ -19,6 +19,7 @@
     "dev": "bun --hot src/server.ts",
     "start": "bun src/server.ts",
     "chat": "bun src/chat.ts",
+    "ingest": "bun src/rag/ingest.ts",
     "test": "bun test"
   }
 }

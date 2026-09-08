@@ -1,5 +1,6 @@
 import { HumanMessage } from "@langchain/core/messages";
 import { buildGraph } from "./agent/graph";
+import { summarizeFlow } from "./agent/flow";
 
 // Lazy so the server boots (and /health works) even before ANTHROPIC_API_KEY is
 // configured; the first /chat surfaces a clear error instead of a boot crash.
@@ -26,9 +27,13 @@ Bun.serve({
         }
         try {
           const result = await getGraph().invoke({ messages: [new HumanMessage(body.message)] });
+          const flow = summarizeFlow(result);
           return Response.json({
             reply: result.finalAnswer,
+            flow: flow.steps,
             llmCalls: result.llmCalls,
+            retrievals: result.retrievals,
+            toolCalls: result.toolCalls,
             durationMs: Math.round(performance.now() - started),
           });
         } catch (err) {

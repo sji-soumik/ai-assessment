@@ -1,0 +1,25 @@
+# Phase 3 infrastructure: PostgreSQL + pgvector.
+# Phoenix / Prometheus / Grafana arrive in later phases.
+#
+#   docker compose -f ops/docker-compose.yml up -d
+#   DATABASE_URL=postgres://postgres:postgres@localhost:5432/agent bun run ingest
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: agent-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agent
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agent"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

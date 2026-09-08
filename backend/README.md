@@ -1,15 +1,13 @@
-# ai-assessment
+# ai-assessment (backend)
 
-To install dependencies:
+TypeScript LangGraph mortgage agent. Setup, API, and current status live in the [project README](../README.md).
 
 ```bash
 bun install
+cp .env.example .env   # set ANTHROPIC_API_KEY
+bun run dev            # http://localhost:3000
+bun run chat "What is the current base rate?"
+bun test
 ```
 
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.3.0. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+Phase plan: [SPEC.md](SPEC.md). Conventions: [AGENT.md](AGENT.md).

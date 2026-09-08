@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { FakeListChatModel } from "@langchain/core/utils/testing";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { buildGraph } from "../src/agent/graph";
+import { summarizeFlow } from "../src/agent/flow";
 import { toAgentMessage } from "../src/agent/messages";
 import { routeAfterLlm } from "../src/agent/nodes";
 import type { LLMCallRecord } from "../src/agent/state";
@@ -50,7 +51,7 @@ describe("agent graph (fake model)", () => {
     expect(result.llmCalls[1]!.purpose).toBe("reasoning");
   });
 
-  test("retrieval path: agent → retrieval → reasoning → respond", async () => {
+  test("retrieval path: agent → retrieval → tool → reasoning → respond", async () => {
     const model = sequenceModel([
       new AIMessage({
         content: "",
@@ -65,6 +66,44 @@ describe("agent graph (fake model)", () => {
 
     expect(result.finalAnswer).toBe("Policy docs mention a base rate guideline of 4.25% (stub).");
     expect(result.llmCalls.map((c: LLMCallRecord) => c.purpose)).toEqual(["agent", "reasoning"]);
+    expect(result.retrievals).toHaveLength(1);
+  });
+
+  test("Phase 5 complete flow: one request runs LLM → retrieval → tool → reasoning → answer", async () => {
+    const model = sequenceModel([
+      new AIMessage({
+        content: "",
+        tool_calls: [
+          { name: "retrieve", args: { query: "FHA credit overlay" }, id: "r1" },
+          { name: "getMortgageRate", args: { product: "fha", termYears: 30 }, id: "t1" },
+        ],
+      }),
+      new AIMessage(
+        "FHA requires a minimum credit score of 580. The current 30-year FHA rate is 6.1%.",
+      ),
+    ]);
+    const graph = buildGraph(model);
+    const result = await graph.invoke({
+      messages: [
+        new HumanMessage("What is the FHA credit overlay and the current 30-year FHA rate?"),
+      ],
+    });
+
+    const flow = summarizeFlow(result);
+    expect(flow.isCompleteFlow).toBe(true);
+    expect(flow.steps).toEqual([
+      "llm.agent",
+      "retrieval",
+      "tool.getMortgageRate",
+      "llm.reasoning",
+      "respond",
+    ]);
+    expect(result.llmCalls).toHaveLength(2);
+    expect(result.retrievals).toHaveLength(1);
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls[0]!.name).toBe("getMortgageRate");
+    expect(result.toolCalls[0]!.status).toBe("success");
+    expect(result.finalAnswer).toContain("6.1%");
   });
 
   test("LLM error propagates as a failed request", async () => {
@@ -116,6 +155,27 @@ describe("live LLM (auto-skipped without ANTHROPIC_API_KEY)", () => {
       expect(call.inputTokens).toBeGreaterThan(0);
       expect(call.outputTokens).toBeGreaterThan(0);
       expect(call.latencyMs).toBeGreaterThan(0);
+    },
+    180_000,
+  );
+
+  test.skipIf(!process.env.ANTHROPIC_API_KEY || !process.env.DATABASE_URL)(
+    "Phase 5 acceptance: live complete flow with retrieval + tool + reasoning",
+    async () => {
+      const graph = buildGraph();
+      const result = await graph.invoke({
+        messages: [
+          new HumanMessage(
+            "What are the FHA credit score requirements and what is the current 30-year FHA mortgage rate?",
+          ),
+        ],
+      });
+      const flow = summarizeFlow(result);
+      expect(result.finalAnswer.length).toBeGreaterThan(0);
+      expect(flow.isCompleteFlow).toBe(true);
+      expect(result.llmCalls.length).toBeGreaterThanOrEqual(2);
+      expect(result.retrievals.length).toBeGreaterThan(0);
+      expect(result.toolCalls.some((t) => t.name === "getMortgageRate")).toBe(true);
     },
     180_000,
   );
