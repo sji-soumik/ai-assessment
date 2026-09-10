@@ -1,4 +1,5 @@
 import type { Span } from "@opentelemetry/api";
+import { retrievalQuality } from "../chaos";
 import type { LLMCallRecord, RetrievalRecord, ToolCallRecord } from "../agent/state";
 import { llmCostUsd } from "./cost";
 
@@ -34,9 +35,21 @@ export function setRetrievalSpanAttrs(span: Span, record: RetrievalRecord): void
   span.setAttribute("retrieval.document_count", record.chunkIds.length);
   span.setAttribute("retrieval.chunk_ids", JSON.stringify(record.chunkIds));
   span.setAttribute("retrieval.document_ids", JSON.stringify(record.documentIds));
+  span.setAttribute("retrieval.source_paths", JSON.stringify(record.sourcePaths));
+  span.setAttribute(
+    "retrieval.documents",
+    truncate(
+      record.texts
+        .map((text, i) => `[${record.sourcePaths[i] ?? "?"}] ${text}`)
+        .join("\n\n"),
+    ),
+  );
   span.setAttribute("retrieval.similarity_scores", JSON.stringify(record.similarityScores));
   span.setAttribute("retrieval.latency_ms", record.latencyMs);
   span.setAttribute("retrieval.status", record.status);
+  if (record.status === "success") {
+    span.setAttribute("retrieval.quality", retrievalQuality(record.similarityScores));
+  }
   if (record.error) span.setAttribute("retrieval.error", truncate(record.error));
 }
 

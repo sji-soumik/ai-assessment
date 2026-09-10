@@ -12,7 +12,7 @@ export const PRICING = { inputPerMTok: 5.0, outputPerMTok: 25.0 };
  * claude-opus-5 and the API rejects them with a 400. `thinking` stays unset
  * (adaptive is the model default).
  */
-export function makeModel(options: { maxTokens?: number; timeoutMs?: number } = {}) {
+export function makeModel(options: { maxTokens?: number; timeoutMs?: number; maxRetries?: number } = {}) {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error(
       "ANTHROPIC_API_KEY is not set. Copy .env.example to .env and add your key (Bun loads .env automatically).",
@@ -23,6 +23,6 @@ export function makeModel(options: { maxTokens?: number; timeoutMs?: number } = 
     maxTokens: options.maxTokens ?? 2048,
     // Production default: 30s. Chaos (Phase 14) lowers this to force timeouts.
     clientOptions: { timeout: options.timeoutMs ?? 30_000 },
-    maxRetries: 2,
+    maxRetries: options.maxRetries ?? 2,
   });
 }

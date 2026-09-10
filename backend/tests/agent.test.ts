@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { FakeListChatModel } from "@langchain/core/utils/testing";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { buildGraph } from "../src/agent/graph";
+import { invokeAgent } from "../src/agent/invoke";
 import { summarizeFlow } from "../src/agent/flow";
 import { toAgentMessage } from "../src/agent/messages";
 import { routeAfterLlm } from "../src/agent/nodes";
@@ -179,4 +180,17 @@ describe("live LLM (auto-skipped without ANTHROPIC_API_KEY)", () => {
     },
     180_000,
   );
+});
+
+describe("invokeAgent correlation", () => {
+  test("returns the caller requestId and a final answer", async () => {
+    const { result, requestId, traceId } = await invokeAgent("hi", {
+      graph: buildGraph(sequenceModel([new AIMessage("hello")])),
+      requestId: "req-123",
+      evaluate: false,
+    });
+    expect(requestId).toBe("req-123");
+    expect(traceId).toBeDefined();
+    expect(result.finalAnswer).toBe("hello");
+  });
 });

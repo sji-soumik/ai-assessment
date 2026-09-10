@@ -15,7 +15,7 @@ Proven useful via 5 failure tests: **slow tool, tool failure, bad retrieval, tok
 
 ## Build order (non-negotiable)
 
-**Agent first, observability later.** No OTel/metrics code before SPEC phases P1–P5 are done and manually verified. Fault injection stays isolated in `chaos.ts` (arrives at P14).
+**Agent first, observability later.** No OTel/metrics code before SPEC phases P1–P5 are done and manually verified. Fault injection stays isolated in `chaos.ts` (off unless `scenario` is set).
 
 ## Runtime rules (non-negotiable)
 
@@ -34,31 +34,33 @@ Proven useful via 5 failure tests: **slow tool, tool failure, bad retrieval, tok
 | `bun run dev` | agent server on :3000 (`--hot`) |
 | `bun run chat "question"` | one-shot CLI conversation with internal capture printout |
 | `bun test` | fake-model graph tests + live smoke test (auto-skipped without `ANTHROPIC_API_KEY`) |
-| `docker compose up -d` | (from P3/P10) Postgres+pgvector, Phoenix, Prometheus, Grafana |
-| `bun run demo <scenario>` | (from P14) failure-scenario runner |
+| `docker compose up -d` | Postgres+pgvector, Phoenix, Prometheus, Grafana (:3002) |
+| `bun run demo <scenario>` | P14 failure-scenario runner (`slow_tool`, `tool_failure`, `bad_retrieval`, `token_heavy`, `llm_timeout`) |
 
 ## Repo layout
 
 ```
 src/
   llm.ts               # model factory (single construction point)
-  server.ts            # Bun.serve: POST /chat, GET /health, (P12: GET /metrics)
-  chat.ts              # CLI one-shot conversation
+  server.ts            # Express: POST /chat, GET /health, GET /metrics
+  chat.ts              # CLI one-shot conversation (prints Phase 11 trace tree)
   agent/state.ts       # Annotation state: messages, llmCalls[], finalAnswer
-  agent/nodes.ts       # agent node, route(), toolsNode (stub until P3/P4), respondNode
+  agent/invoke.ts      # request wrapper: root span + metrics + groundedness judge
   agent/graph.ts       # StateGraph wiring; buildGraph(model?) for test injection
   rag/                 # P3: ingestion, chunking, embeddings, pgvector store
-  tools/               # P4: getMortgageRate (+ getRateSheet)
-  obs/                 # P6+: otel.ts, spans.ts, metrics.ts, cost.ts
+  tools/               # P4: getMortgageRate
+  obs/                 # otel.ts, spans.ts, metrics.ts, eval.ts, cost.ts, traceTree.ts, requestContext.ts
   chaos.ts             # P14: scenario → fault injection (single source of truth)
-tests/                 # agent, retrieval, tool, timeout, observability
+  demo.ts              # P14: bun run demo <scenario>
+tests/                 # agent, retrieval, tool, timeout, observability, metrics, eval
 ops/                   # docker-compose.yml, prometheus.yml, grafana provisioning
 ```
 
 ## Conventions
 
 - **Spans (P6+):** root `agent`; children `llm.call`, `retrieval`, `tool.call`, `llm.reasoning`, `final.response`. GenAI semconv attrs on LLM spans (`gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens/output_tokens`) + `llm.cost_usd`. Errors → `recordException` + `ERROR` status, then rethrow.
-- **Metrics (P12+):** exact names from SPEC P12; snake_case, base units, bounded label values only.
+- **Metrics (P12+):** exact names from SPEC P12; snake_case, base units, bounded label values only (`status`, `purpose`, `tool` name, sanitized `user`). Grafana is on :3002.
+- **Groundedness:** LLM-as-judge after the root `agent` span (metrics-only — do not add an eval span to the P11 tree). `agent_groundedness_total{verdict}`; never invent `grounded`. Judge tokens stay out of `llm_*` counters.
 - **Errors are data:** a failed tool returns an error `ToolMessage` so the LLM can react; only LLM timeout fails the whole request. Every failure still produces a complete trace.
 - **Capture-before-telemetry (P1–P5):** LLM/tool/retrieval internals (model, tokens, latency, status, error…) are recorded into graph state (`llmCalls` etc.) and logged — OTel later reads from the same seams.
 - TypeScript strict; use LangChain/SDK types (`AIMessage`, `ToolMessage`, `BaseChatModel`…) — don't redefine equivalents. Test graph logic with `FakeListChatModel` injection via `buildGraph(model)`.

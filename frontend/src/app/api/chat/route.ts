@@ -2,9 +2,9 @@ import { backendUrl } from "@/lib/backend";
 import type { ChatErrorResponse, ChatResponse } from "@/lib/types";
 
 export async function POST(request: Request): Promise<Response> {
-  let body: { message?: string };
+  let body: { message?: string; userId?: string; scenario?: string };
   try {
-    body = (await request.json()) as { message?: string };
+    body = (await request.json()) as { message?: string; userId?: string; scenario?: string };
   } catch {
     return Response.json({ error: "invalid JSON body" } satisfies ChatErrorResponse, {
       status: 400,
@@ -21,7 +21,11 @@ export async function POST(request: Request): Promise<Response> {
     const upstream = await fetch(`${backendUrl()}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: body.message.trim() }),
+      body: JSON.stringify({
+        message: body.message.trim(),
+        userId: body.userId ?? "frontend",
+        ...(body.scenario ? { scenario: body.scenario } : {}),
+      }),
     });
 
     const data = (await upstream.json()) as ChatResponse | ChatErrorResponse;
