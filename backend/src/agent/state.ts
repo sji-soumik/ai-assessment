@@ -22,9 +22,49 @@ export interface LLMCallRecord {
   error?: string;
 }
 
+/**
+ * Internal capture of a single retrieval (Phase 3 requirement):
+ * query, documents, document IDs, similarity scores, top-K, retrieval latency.
+ */
+export interface RetrievalRecord {
+  query: string;
+  topK: number;
+  chunkIds: number[];
+  documentIds: number[];
+  sourcePaths: string[];
+  similarityScores: number[];
+  texts: string[]; // truncated chunk contents, order-aligned with the arrays above
+  latencyMs: number;
+  status: "success" | "error";
+  error?: string;
+}
+
+/**
+ * Internal capture of a single tool call (Phase 4 requirement):
+ * name, arguments, start/end time, latency, result, status, error.
+ */
+export interface ToolCallRecord {
+  name: string;
+  arguments: Record<string, unknown>;
+  startedAt: number; // epoch ms
+  endedAt: number; // epoch ms
+  latencyMs: number;
+  result: string; // serialized tool result (truncated)
+  status: "success" | "error";
+  error?: string;
+}
+
 export const AgentStateAnnotation = Annotation.Root({
   ...MessagesAnnotation.spec,
   llmCalls: Annotation<LLMCallRecord[]>({
+    reducer: (a, b) => a.concat(b),
+    default: () => [],
+  }),
+  retrievals: Annotation<RetrievalRecord[]>({
+    reducer: (a, b) => a.concat(b),
+    default: () => [],
+  }),
+  toolCalls: Annotation<ToolCallRecord[]>({
     reducer: (a, b) => a.concat(b),
     default: () => [],
   }),

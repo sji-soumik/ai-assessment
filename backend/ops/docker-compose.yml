@@ -1,0 +1,37 @@
+# Phase 3 infrastructure: PostgreSQL + pgvector.
+# Phase 6+: Arize Phoenix for OTLP traces.
+#
+#   docker compose -f ops/docker-compose.yml up -d
+#   DATABASE_URL=postgres://postgres:postgres@localhost:5432/agent bun run ingest
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:6006/v1/traces
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: agent-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agent
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agent"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: agent-phoenix
+    ports:
+      - "6006:6006"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:6006/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
