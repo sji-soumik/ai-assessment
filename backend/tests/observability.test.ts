@@ -128,4 +128,33 @@ describe("OpenTelemetry span tree (Phase 6)", () => {
     expect(tool.attributes["tool.status"]).toBe("success");
     expect(tool.attributes["tool.latency_ms"]).toBeDefined();
   });
+
+  test("retrieval span carries query and status attrs (Phase 8)", async () => {
+    const model = sequenceModel([
+      new AIMessage({
+        content: "",
+        tool_calls: [
+          { name: "retrieve", args: { query: "FHA overlay" }, id: "r1" },
+          { name: "getMortgageRate", args: { product: "fha", termYears: 30 }, id: "t1" },
+        ],
+      }),
+      new AIMessage("FHA requires 580+ credit; 30-year FHA rate is 6.1%."),
+    ]);
+    const graph = buildGraph(model);
+
+    await withSpan(SpanName.agent, async () => {
+      await graph.invoke({
+        messages: [new HumanMessage("FHA overlay and 30-year FHA rate?")],
+      });
+    });
+    await flushTelemetry();
+
+    const retrieval = memory.getFinishedSpans().find((s) => s.name === SpanName.retrieval)!;
+    expect(retrieval.attributes["retrieval.query"]).toBe("FHA overlay");
+    expect(retrieval.attributes["retrieval.document_count"]).toBeDefined();
+    expect(retrieval.attributes["retrieval.similarity_scores"]).toBeDefined();
+    expect(retrieval.attributes["retrieval.latency_ms"]).toBeDefined();
+    const retrievalStatus = retrieval.attributes["retrieval.status"];
+    expect(retrievalStatus === "success" || retrievalStatus === "error").toBe(true);
+  });
 });

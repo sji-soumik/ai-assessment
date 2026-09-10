@@ -2,7 +2,7 @@
 
 A TypeScript LangGraph agent for mortgage-lending questions (base rates, rate sheets, products), with a planned full observability stack: per-request traces in Arize Phoenix and Prometheus/Grafana dashboards.
 
-**Build order:** working agent first, observability later. Phases 1–9 (agent + OpenTelemetry spans with full attributes) are done. Phoenix export, Prometheus, and Grafana are next.
+**Build order:** working agent first, observability later. Phases 1–10 (agent + OpenTelemetry spans + Phoenix OTLP export) are done. Prometheus and Grafana are next.
 
 ## Current status
 
@@ -14,7 +14,8 @@ A TypeScript LangGraph agent for mortgage-lending questions (base rates, rate sh
 | P4 | `getMortgageRate` tool (in-process rate table); name / args / start / end / latency / result / status / error captured | Done |
 | P5 | Complete flow: one request can run LLM → retrieval → tool → reasoning → answer; `flow` summary on CLI + `/chat` | Done |
 | P6–P9 | OpenTelemetry: root `agent` span + children (`llm.call`, `retrieval`, `tool.call`, `llm.reasoning`, `final.response`) with full attrs + cost | Done |
-| P10–P18 | Phoenix demo, Prometheus, Grafana, failure tests | Not started |
+| P10 | Arize Phoenix OTLP export; CLI flush + server SIGINT/SIGTERM shutdown | Done |
+| P11–P18 | Starred Phoenix walkthrough, Prometheus, Grafana, failure tests | Not started |
 
 One request can trigger **multiple AI operations** before the final answer. Example that exercises the full path:
 
@@ -71,7 +72,7 @@ USER ──POST /chat {message, scenario?}──┐
 | Agent | LangGraph (`@langchain/langgraph`) | Explicit graph: agent → retrieval/tool → reasoning → respond |
 | LLM | Claude `claude-opus-5` via `@langchain/anthropic` | Single construction point in `src/llm.ts`. Do not set `temperature` / `top_p` / `top_k` (API returns 400). |
 | Vector DB (planned) | PostgreSQL + pgvector | Plan requirement. Local 512-dim hash-n-gram embeddings (no extra API keys). |
-| Traces (planned) | Arize Phoenix over OTLP | Self-hosted, no extra account. Langfuse is a documented OTLP swap. |
+| Traces | Arize Phoenix over OTLP | Self-hosted, no extra account. Langfuse is a documented OTLP-endpoint swap (set `OTEL_EXPORTER_OTLP_ENDPOINT`). |
 | Metrics (planned) | Prometheus + Grafana | Four dashboards: Performance, Cost, Reliability, Quality. |
 
 Cost math (used from P7): **$5 / 1M input tokens**, **$25 / 1M output tokens**.
@@ -82,7 +83,7 @@ Cost math (used from P7): **$5 / 1M input tokens**, **$25 / 1M output tokens**.
 - An [Anthropic API key](https://console.anthropic.com/) for live chat (tests without the key still run against a fake model)
 - Docker (for the P3 PostgreSQL + pgvector container)
 
-Phoenix, Prometheus, and Grafana are not required until later phases.
+Phoenix is required for the P10 trace demo (compose starts it on :6006). Prometheus and Grafana are not required until later phases. To run the agent with compose down, set `OTEL_SDK_DISABLED=true` so the SDK stays a noop and `/chat` still works.
 
 ## Setup
 
@@ -92,10 +93,11 @@ bun install
 cp .env.example .env
 # set ANTHROPIC_API_KEY in .env (DATABASE_URL is pre-filled for the local container)
 
-# P3 RAG + P6 traces: start pgvector and Phoenix
+# P3 RAG + P10 traces: start pgvector and Phoenix
 docker compose -f ops/docker-compose.yml up -d
 bun run ingest
 # OTEL_EXPORTER_OTLP_ENDPOINT is pre-filled in .env.example
+# Optional: OTEL_SDK_DISABLED=true when Phoenix is not running
 ```
 
 Bun loads `.env` automatically. Never commit `.env`.
@@ -173,7 +175,33 @@ curl -s http://localhost:3000/chat \
 ```
 
 `retrievals` and `toolCalls` are empty when a request answers directly. Missing
-`message` or invalid JSON → `400`. LLM/provider errors → `500`.
+`message` or invalid JSON → `400`. LLM/provider errors → `500`. Successful
+`/chat` responses include `traceId` (hex) so you can look up the same request in Phoenix.
+
+### Trace demo (P10)
+
+End-to-end: one complete-flow question produces a **single `traceId`** with six span types (`agent`, `llm.call`, `retrieval`, `tool.call`, `llm.reasoning`, `final.response`).
+
+```bash
+cd backend
+docker compose -f ops/docker-compose.yml up -d   # postgres + phoenix
+bun run ingest                                   # RAG corpus for retrieval
+bun run chat "FHA overlay and 30-year FHA rate?"
+# copy the printed traceId
+```
+
+Open [http://localhost:6006](http://localhost:6006) → find that `traceId` → confirm nesting and attributes:
+
+| Span | What to read |
+|---|---|
+| `llm.call` / `llm.reasoning` | model, tokens, `llm.cost_usd`, status (Claude Opus 5 has no numeric temperature — sampling is model-default) |
+| `retrieval` | query, document count, similarity scores, latency, status |
+| `tool.call` | name, arguments, result, latency, status |
+| `final.response` | answer text |
+
+The HTTP server flushes the OTLP batch on `SIGINT` / `SIGTERM`. The CLI flushes and shuts down telemetry before exit. With Phoenix **down**, requests still succeed (export is async); set `OTEL_SDK_DISABLED=true` locally if export logs are noisy.
+
+Langfuse is not a second SDK — point `OTEL_EXPORTER_OTLP_ENDPOINT` at a Langfuse OTLP URL if you pivot later. Phoenix's `/v1/traces` ingest accepts **OTLP protobuf** (`application/x-protobuf`), not JSON.
 
 ## Project layout
 
@@ -186,7 +214,7 @@ ai-assessment/
 └── backend/
     ├── SPEC.md               # phase plan, gates, architecture
     ├── AGENT.md              # operating guide for agents working in this repo
-    ├── ops/                  # docker-compose.yml (pgvector; Phoenix/Prometheus/Grafana later)
+    ├── ops/                  # docker-compose.yml (pgvector + Phoenix; Prometheus/Grafana later)
     ├── rag/docs/             # policy corpus ingested into pgvector
     ├── src/
     │   ├── llm.ts            # Claude model factory (only construction point)
@@ -210,7 +238,7 @@ Later phases add `chaos.ts`, extend `ops/` (Prometheus, Grafana), and metrics in
 
 Work phase-by-phase from [`backend/SPEC.md`](backend/SPEC.md). Next up:
 
-1. **P10–P11** — Phoenix trace backend + end-to-end trace demo
+1. **P11** — Starred end-to-end trace walkthrough (same Phoenix steps as [Trace demo](#trace-demo-p10) above)
 2. **P12+** — Prometheus metrics, Grafana dashboards, failure scenarios
 
 The final README (P18) will add a live trace walkthrough, Grafana screenshots, failure-scenario results, and a fresh-checkout runbook.
