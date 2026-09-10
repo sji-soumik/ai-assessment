@@ -2,7 +2,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { HumanMessage } from "@langchain/core/messages";
 import { buildGraph } from "./agent/graph";
 import { summarizeFlow } from "./agent/flow";
-import { initTelemetry } from "./obs/otel";
+import { initTelemetry, shutdownTelemetry } from "./obs/otel";
 import { SpanName } from "./obs/names";
 import { withSpan } from "./obs/spans";
 
@@ -73,6 +73,23 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
   next(err);
 });
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`ai-agent listening on http://localhost:${port}`);
 });
+
+let shuttingDown = false;
+const onSignal = (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`received ${signal}, flushing telemetry`);
+  void shutdownTelemetry()
+    .catch((err) => {
+      console.error("telemetry shutdown failed:", err);
+    })
+    .finally(() => {
+      server.close(() => process.exit(0));
+    });
+};
+
+process.on("SIGINT", () => onSignal("SIGINT"));
+process.on("SIGTERM", () => onSignal("SIGTERM"));

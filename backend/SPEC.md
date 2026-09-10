@@ -14,7 +14,7 @@ Rule #1 from the plan: **build the working agent first — no observability unti
 - [x] **P7 — LLM span attrs**: model, provider, tokens (in/out/total), latency, request/response, status, error, **cost** (`gen_ai.*` + `llm.cost_usd`)
 - [x] **P8 — Retrieval span attrs**: query, top_k, document_count, document_ids, similarity_scores, latency, status
 - [x] **P9 — Tool span attrs**: name, arguments, latency, status, result, error
-- [ ] **P10 — Trace backend**: **Arize Phoenix** (pick-one rule; see decision below). Langfuse = documented alt
+- [x] **P10 — Trace backend**: **Arize Phoenix** (pick-one rule; see decision below). Langfuse = documented alt
 - [ ] **P11 — End-to-end trace demo** ⭐ (the main demo)
 - [ ] **P12 — Prometheus**: `agent_requests_total`, `agent_request_duration_seconds`, `llm_requests_total`, `llm_latency_seconds`, `llm_input_tokens_total`, `llm_output_tokens_total`, `tool_requests_total`, `tool_latency_seconds`, `tool_errors_total`, `retrieval_requests_total`, `retrieval_latency_seconds` (+ `llm_cost_dollars_total`, `llm_timeouts_total`)
 - [ ] **P13 — Grafana, four dashboards**: Performance · Cost · Reliability · Quality
@@ -77,5 +77,5 @@ Span tree per request (P6–P9): `agent` → { `llm.call`, `retrieval`, `tool.ca
 
 ## Environment & ports
 
-`ANTHROPIC_API_KEY` (required) · `DATABASE_URL` (P3, default `postgres://postgres:postgres@localhost:5432/agent`) · `OTEL_EXPORTER_OTLP_ENDPOINT` (P6, default `http://localhost:6006/v1/traces`) · `PORT` (3000).
+`ANTHROPIC_API_KEY` (required) · `DATABASE_URL` (P3, default `postgres://postgres:postgres@localhost:5432/agent`) · `OTEL_EXPORTER_OTLP_ENDPOINT` (P6, default `http://localhost:6006/v1/traces`) · `OTEL_SDK_DISABLED=true` (optional; noop SDK when Phoenix is down) · `PORT` (3000).
 Ports: app **3000** · Phoenix **6006** · Postgres **5432** · Prometheus **9090** · Grafana **3001**.

@@ -5,7 +5,7 @@ import {
   type SpanExporter,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
   ATTR_SERVICE_NAME,
@@ -29,7 +29,7 @@ export interface TelemetryOptions {
 
 /**
  * Register the OpenTelemetry tracer provider once per process.
- * Exports to Phoenix via OTLP HTTP unless disabled or overridden.
+ * Exports to Phoenix via OTLP HTTP protobuf (Phoenix rejects application/json with 415).
  */
 export function initTelemetry(options: TelemetryOptions = {}): void {
   if (initialized) return;
