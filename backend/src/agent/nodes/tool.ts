@@ -3,7 +3,10 @@ import { ToolMessage } from "@langchain/core/messages";
 import { toAgentMessages } from "../messages";
 import type { AgentMessage, AgentState, ToolCallRecord } from "../state";
 import { setToolSpanAttrs } from "../../obs/attrs";
+import { recordToolCall } from "../../obs/metrics";
 import { SpanName } from "../../obs/names";
+import { currentTraceId } from "../../obs/otel";
+import { correlationPrefix } from "../../obs/requestContext";
 import { withSpan } from "../../obs/spans";
 import { getMortgageRate, MORTGAGE_RATE_TOOL } from "../../tools/getMortgageRate";
 import { truncate } from "./llm";
@@ -32,7 +35,7 @@ export async function toolNode(state: AgentState): Promise<Partial<AgentState>> 
       let record: ToolCallRecord;
 
       try {
-        const result = runTool(call.name, call.args);
+        const result = await runTool(call.name, call.args);
         const latencyMs = Math.round(performance.now() - started);
         record = {
           name: call.name,
@@ -43,7 +46,7 @@ export async function toolNode(state: AgentState): Promise<Partial<AgentState>> 
           result: truncate(result, 300),
           status: "success",
         };
-        console.log(`[tool] ${call.name} ok latency=${latencyMs}ms result=${truncate(result, 80)}`);
+        console.log(`${correlationPrefix(currentTraceId())}[tool] ${call.name} ok latency=${latencyMs}ms result=${truncate(result, 80)}`);
         messages.push(toToolMessage(result, call.id, call.name));
       } catch (err) {
         const latencyMs = Math.round(performance.now() - started);
@@ -58,11 +61,12 @@ export async function toolNode(state: AgentState): Promise<Partial<AgentState>> 
           status: "error",
           error,
         };
-        console.error(`[tool] ${call.name} error after ${latencyMs}ms: ${error}`);
+        console.error(`${correlationPrefix(currentTraceId())}[tool] ${call.name} error after ${latencyMs}ms: ${error}`);
         messages.push(toToolMessage(`Tool error: ${error}`, call.id, call.name));
       }
 
       setToolSpanAttrs(span, record);
+      recordToolCall(record);
       if (record.status === "error") {
         span.setStatus({ code: SpanStatusCode.ERROR, message: record.error });
       }
@@ -74,9 +78,9 @@ export async function toolNode(state: AgentState): Promise<Partial<AgentState>> 
 }
 
 /** Dispatch a tool by name. Throws for unknown tools (caller records the error). */
-function runTool(name: string, args: Record<string, unknown>): string {
+async function runTool(name: string, args: Record<string, unknown>): Promise<string> {
   if (name === MORTGAGE_RATE_TOOL.name) {
-    return JSON.stringify(getMortgageRate(args));
+    return JSON.stringify(await getMortgageRate(args));
   }
   throw new Error(`Unknown tool "${name}".`);
 }

@@ -1,9 +1,11 @@
-# Phase 3 infrastructure: PostgreSQL + pgvector.
-# Phase 6+: Arize Phoenix for OTLP traces.
+# PostgreSQL + pgvector, Arize Phoenix (OTLP traces), Prometheus, Grafana.
 #
 #   docker compose -f ops/docker-compose.yml up -d
 #   DATABASE_URL=postgres://postgres:postgres@localhost:5432/agent bun run ingest
 #   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:6006/v1/traces
+#
+# The agent itself runs on the host (`bun run dev` on :3000). Prometheus scrapes
+# it via host.docker.internal. Grafana is on host :3002 (frontend keeps :3001).
 services:
   postgres:
     image: pgvector/pgvector:pg17
@@ -33,5 +35,44 @@ services:
       timeout: 5s
       retries: 5
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: agent-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: agent-grafana
+    ports:
+      - "3002:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_THEME: dark
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
   pgdata:
+  promdata:
+  grafanadata:

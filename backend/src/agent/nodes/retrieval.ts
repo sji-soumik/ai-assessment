@@ -3,7 +3,10 @@ import { ToolMessage } from "@langchain/core/messages";
 import { toAgentMessages } from "../messages";
 import type { AgentMessage, AgentState, RetrievalRecord } from "../state";
 import { setRetrievalSpanAttrs } from "../../obs/attrs";
+import { recordRetrieval } from "../../obs/metrics";
 import { SpanName } from "../../obs/names";
+import { currentTraceId } from "../../obs/otel";
+import { correlationPrefix } from "../../obs/requestContext";
 import { withSpan } from "../../obs/spans";
 import { DEFAULT_TOP_K, similaritySearch, type RetrievalHit } from "../../rag/search";
 import { truncate } from "./llm";
@@ -61,7 +64,7 @@ export async function retrievalNode(state: AgentState): Promise<Partial<AgentSta
           status: "success",
         };
         console.log(
-          `[retrieval] ok query="${truncate(query, 60)}" hits=${hits.length} topK=${topK} latency=${latencyMs}ms`,
+          `${correlationPrefix(currentTraceId())}[retrieval] ok query="${truncate(query, 60)}" hits=${hits.length} topK=${topK} latency=${latencyMs}ms`,
         );
         messages.push(toToolMessage(formatHits(hits), call.id, call.name));
       } catch (err) {
@@ -79,7 +82,7 @@ export async function retrievalNode(state: AgentState): Promise<Partial<AgentSta
           status: "error",
           error,
         };
-        console.error(`[retrieval] error query="${truncate(query, 60)}" after ${latencyMs}ms: ${error}`);
+        console.error(`${correlationPrefix(currentTraceId())}[retrieval] error query="${truncate(query, 60)}" after ${latencyMs}ms: ${error}`);
         messages.push(
           toToolMessage(
             `Retrieval failed: ${error}. No knowledge-base documents are available for this query.`,
@@ -90,6 +93,7 @@ export async function retrievalNode(state: AgentState): Promise<Partial<AgentSta
       }
 
       setRetrievalSpanAttrs(span, record);
+      recordRetrieval(record);
       if (record.status === "error") {
         span.setStatus({ code: SpanStatusCode.ERROR, message: record.error });
       }

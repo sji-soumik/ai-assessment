@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { applyToolChaos } from "../chaos";
 
 /**
  * getMortgageRate — the agent's only live tool (Phase 4).
@@ -76,12 +77,22 @@ export function normalizeArgs(args: MortgageRateArgs = {}): {
 }
 
 /**
- * Look up a live rate. Throws RateNotFoundError for unknown product/term so the
- * caller can surface a recoverable tool error (the request still completes).
+ * Pure rate-table lookup (no chaos). Tests of the table call this directly.
  */
-export function getMortgageRate(args: MortgageRateArgs = {}): RateQuote {
+export function lookupRate(args: MortgageRateArgs = {}): RateQuote {
   const { product, termYears } = normalizeArgs(args);
   const ratePercent = RATE_TABLE[product]?.[termYears];
   if (ratePercent === undefined) throw new RateNotFoundError(product, termYears);
   return { product, termYears, ratePercent, asOf: new Date().toISOString() };
+}
+
+/**
+ * Look up a live rate. Phase 14 chaos (slow tool / connection refused) is
+ * applied here so the rest of the agent stays unaware of fault injection.
+ * Throws RateNotFoundError for unknown product/term so the caller can surface
+ * a recoverable tool error (the request still completes).
+ */
+export async function getMortgageRate(args: MortgageRateArgs = {}): Promise<RateQuote> {
+  await applyToolChaos();
+  return lookupRate(args);
 }

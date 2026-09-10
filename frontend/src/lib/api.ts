@@ -11,11 +11,15 @@ export async function checkHealth(): Promise<boolean> {
   }
 }
 
-export async function sendChat(message: string): Promise<ChatResponse> {
+export async function sendChat(message: string, scenario?: string): Promise<ChatResponse> {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({
+      message,
+      userId: "frontend",
+      ...(scenario ? { scenario } : {}),
+    }),
   });
 
   const data = (await res.json()) as ChatResponse | ChatErrorResponse;

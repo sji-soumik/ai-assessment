@@ -13,6 +13,15 @@ const STARTERS = [
   "Get the 30-year conventional mortgage rate.",
 ];
 
+const SCENARIOS: { id: string; label: string }[] = [
+  { id: "", label: "Normal" },
+  { id: "slow_tool", label: "Slow tool (8s)" },
+  { id: "tool_failure", label: "Tool failure" },
+  { id: "bad_retrieval", label: "Bad retrieval" },
+  { id: "token_heavy", label: "Token-heavy (~$0.40)" },
+  { id: "llm_timeout", label: "LLM timeout" },
+];
+
 function uid(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -22,6 +31,7 @@ export function ChatApp() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scenario, setScenario] = useState("");
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [loadIndex, setLoadIndex] = useState(0);
   const [activeCapture, setActiveCapture] = useState<ChatResponse | null>(null);
@@ -70,7 +80,7 @@ export function ChatApp() {
     setInput("");
 
     try {
-      const capture = await sendChat(trimmed);
+      const capture = await sendChat(trimmed, scenario || undefined);
       setActiveCapture(capture);
       setMessages((m) => [
         ...m,
@@ -191,7 +201,23 @@ export function ChatApp() {
         )}
 
         <div className="shrink-0 border-t border-zinc-800 p-4">
-          <div className="mx-auto flex max-w-2xl gap-2">
+          <div className="mx-auto flex max-w-2xl flex-col gap-2">
+            <label className="flex items-center gap-2 text-[11px] text-zinc-500">
+              Failure test
+              <select
+                value={scenario}
+                onChange={(e) => setScenario(e.target.value)}
+                disabled={loading}
+                className="rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-300 focus:border-violet-500/50 focus:outline-none disabled:opacity-50"
+              >
+                {SCENARIOS.map((s) => (
+                  <option key={s.id || "normal"} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex gap-2">
             <textarea
               ref={inputRef}
               value={input}
@@ -210,6 +236,7 @@ export function ChatApp() {
             >
               Send
             </button>
+            </div>
           </div>
         </div>
       </section>
@@ -221,7 +248,12 @@ export function ChatApp() {
             Agent pipeline
           </h2>
           {activeCapture?.flow && activeCapture.flow.length > 0 && !loading && (
-            <FlowBadge flow={activeCapture.flow} durationMs={activeCapture.durationMs} />
+            <FlowBadge
+              flow={activeCapture.flow}
+              durationMs={activeCapture.durationMs}
+              requestId={activeCapture.requestId}
+              traceId={activeCapture.traceId}
+            />
           )}
         </div>
         <div className="max-h-[280px] overflow-y-auto border-b border-zinc-800 px-4 py-4 lg:max-h-none lg:shrink-0">
@@ -265,7 +297,17 @@ export function ChatApp() {
   );
 }
 
-function FlowBadge({ flow, durationMs }: { flow: string[]; durationMs: number }) {
+function FlowBadge({
+  flow,
+  durationMs,
+  requestId,
+  traceId,
+}: {
+  flow: string[];
+  durationMs: number;
+  requestId?: string;
+  traceId?: string;
+}) {
   const isComplete =
     flow.includes("llm.agent") &&
     flow.includes("retrieval") &&
@@ -297,6 +339,8 @@ function FlowBadge({ flow, durationMs }: { flow: string[]; durationMs: number })
       </div>
       <p className="text-[10px] text-zinc-600">
         {durationMs}ms total
+        {requestId && <span className="ml-2 font-mono text-zinc-500">req {requestId.slice(0, 12)}</span>}
+        {traceId && <span className="ml-2 font-mono text-zinc-500">trace {traceId.slice(0, 12)}</span>}
         {isComplete && (
           <span className="ml-2 rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-500">
             complete flow (P5)

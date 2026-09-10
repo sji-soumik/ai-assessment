@@ -4,9 +4,13 @@ import type {
   BaseChatModelCallOptions,
 } from "@langchain/core/language_models/chat_models";
 import type { BaseMessage } from "@langchain/core/messages";
+import { LLM_TIMEOUT_MESSAGE, tokenHeavyPadding } from "../../chaos";
 import { MODEL_ID, PROVIDER } from "../../llm";
 import { setLlmSpanAttrs } from "../../obs/attrs";
+import { isLlmTimeout, recordLlmCall } from "../../obs/metrics";
 import { llmSpanName } from "../../obs/names";
+import { currentTraceId } from "../../obs/otel";
+import { correlationPrefix } from "../../obs/requestContext";
 import { withSpan } from "../../obs/spans";
 import { toAgentMessage } from "../messages";
 import { BINDABLE_TOOLS } from "../tools";
@@ -64,8 +68,11 @@ export function makeLlmNode(model: BaseChatModel, purpose: LLMCallRecord["purpos
 
   return async function llmNode(state: AgentState): Promise<Partial<AgentState>> {
     return withSpan(spanName, async (span) => {
-      const input = [new SystemMessage(systemPrompt(purpose)), ...state.messages] as BaseMessage[];
+      const pad = purpose === "agent" ? tokenHeavyPadding() : undefined;
+      const prompt = pad ? `${systemPrompt(purpose)}\n\n${pad}` : systemPrompt(purpose);
+      const input = [new SystemMessage(prompt), ...state.messages] as BaseMessage[];
       const started = performance.now();
+      const prefix = () => correlationPrefix(currentTraceId());
 
       try {
         const response = (await model.invoke(input, withTools({ tools: BINDABLE_TOOLS }))) as AIMessage;
@@ -81,13 +88,19 @@ export function makeLlmNode(model: BaseChatModel, purpose: LLMCallRecord["purpos
           status: "success",
         };
         setLlmSpanAttrs(span, record);
+        recordLlmCall(record);
         console.log(
-          `[llm] ${record.purpose} ok model=${record.model} tokens=${record.inputTokens}->${record.outputTokens} latency=${record.latencyMs}ms`,
+          `${prefix()}[llm] ${record.purpose} ok model=${record.model} tokens=${record.inputTokens}->${record.outputTokens} latency=${record.latencyMs}ms`,
         );
         return { messages: [toAgentMessage(response)], llmCalls: [record] };
       } catch (err) {
         const latencyMs = Math.round(performance.now() - started);
-        const message = err instanceof Error ? err.message : String(err);
+        const timedOut = isLlmTimeout(err);
+        const message = timedOut
+          ? LLM_TIMEOUT_MESSAGE
+          : err instanceof Error
+            ? err.message
+            : String(err);
         const record: LLMCallRecord = {
           purpose,
           model: MODEL_ID,
@@ -101,7 +114,13 @@ export function makeLlmNode(model: BaseChatModel, purpose: LLMCallRecord["purpos
           error: message,
         };
         setLlmSpanAttrs(span, record);
-        console.error(`[llm] ${purpose} error after ${latencyMs}ms: ${message}`);
+        recordLlmCall(record, timedOut);
+        console.error(`${prefix()}[llm] ${purpose} error after ${latencyMs}ms: ${message}`);
+        if (timedOut) {
+          const timeoutErr = new Error(LLM_TIMEOUT_MESSAGE);
+          timeoutErr.name = "AbortError";
+          throw timeoutErr;
+        }
         throw err;
       }
     });

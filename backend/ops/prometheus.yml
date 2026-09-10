@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: agent
+    metrics_path: /metrics
+    static_configs:
+      # Agent runs on the host (`bun run dev`), not in compose.
+      - targets: ["host.docker.internal:3000"]

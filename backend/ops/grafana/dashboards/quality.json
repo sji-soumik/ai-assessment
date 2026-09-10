@@ -1,0 +1,82 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Retrieval relevance",
+      "description": "Mean cosine similarity of retrieved chunks (1.0 = identical, ~0 = unrelated).",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "none", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never", "spanNulls": false } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(retrieval_similarity_sum[5m]) / clamp_min(rate(retrieval_similarity_count[5m]), 1e-9)",
+          "legendFormat": "mean similarity"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Bad retrieval rate",
+      "description": "Share of retrievals whose max similarity is below 0.35 (the P14 bad-retrieval band is ~0.2–0.3).",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never", "spanNulls": false } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(retrieval_below_threshold_total[5m]) / clamp_min(sum(rate(retrieval_requests_total[5m])), 1e-9)",
+          "legendFormat": "bad retrievals"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Hallucination rate",
+      "description": "Evaluation-derived (LLM-as-judge groundedness), not a runtime heuristic. Denominator is judged requests only (grounded + ungrounded). Direct answers with no retrieval are not judged.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never", "spanNulls": false } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(agent_groundedness_total{verdict=\"ungrounded\"}[5m])) / clamp_min(sum(rate(agent_groundedness_total{verdict=~\"grounded|ungrounded\"}[5m])), 1e-9)",
+          "legendFormat": "ungrounded (LLM-as-judge)"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["agent", "quality"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Quality",
+  "uid": "agent-quality",
+  "version": 1
+}

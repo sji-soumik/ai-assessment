@@ -15,14 +15,14 @@ Rule #1 from the plan: **build the working agent first — no observability unti
 - [x] **P8 — Retrieval span attrs**: query, top_k, document_count, document_ids, similarity_scores, latency, status
 - [x] **P9 — Tool span attrs**: name, arguments, latency, status, result, error
 - [x] **P10 — Trace backend**: **Arize Phoenix** (pick-one rule; see decision below). Langfuse = documented alt
-- [ ] **P11 — End-to-end trace demo** ⭐ (the main demo)
-- [ ] **P12 — Prometheus**: `agent_requests_total`, `agent_request_duration_seconds`, `llm_requests_total`, `llm_latency_seconds`, `llm_input_tokens_total`, `llm_output_tokens_total`, `tool_requests_total`, `tool_latency_seconds`, `tool_errors_total`, `retrieval_requests_total`, `retrieval_latency_seconds` (+ `llm_cost_dollars_total`, `llm_timeouts_total`)
-- [ ] **P13 — Grafana, four dashboards**: Performance · Cost · Reliability · Quality
-- [ ] **P14 — Failure testing** ⭐: slow tool (8s), tool failure (connection refused), bad retrieval (scores ~0.2–0.3), token-heavy (80k+ input tokens), LLM timeout
-- [ ] **P15 — Correlation IDs**: request ID ↔ trace ID ↔ span IDs, propagated through logs/response headers
-- [ ] **P16 — Tests**: `tests/agent|retrieval|tool|timeout|observability.test.ts` + the 10-point verification list
-- [ ] **P17 — Final architecture** verified against the target diagram
-- [ ] **P18 — README**: problem, architecture, technology choices, trace example, Grafana screenshots, failure scenarios, results
+- [x] **P11 — End-to-end trace demo** ⭐ (the main demo)
+- [x] **P12 — Prometheus**: `agent_requests_total`, `agent_request_duration_seconds`, `llm_requests_total`, `llm_latency_seconds`, `llm_input_tokens_total`, `llm_output_tokens_total`, `tool_requests_total`, `tool_latency_seconds`, `tool_errors_total`, `retrieval_requests_total`, `retrieval_latency_seconds` (+ `llm_cost_dollars_total`, `llm_timeouts_total`)
+- [x] **P13 — Grafana, four dashboards**: Performance · Cost · Reliability · Quality
+- [x] **P14 — Failure testing** ⭐: slow tool (8s), tool failure (connection refused), bad retrieval (scores ~0.2–0.3), token-heavy (80k+ input tokens), LLM timeout
+- [x] **P15 — Correlation IDs**: request ID ↔ trace ID ↔ span IDs, propagated through logs/response headers
+- [x] **P16 — Tests**: `tests/agent|retrieval|tool|timeout|observability.test.ts` + the 10-point verification list
+- [x] **P17 — Final architecture** verified against the target diagram
+- [x] **P18 — README**: problem, architecture, technology choices, trace example, Grafana screenshots, failure scenarios, results
 
 ## Key decisions (deltas from the assessor's plan are justified here)
 
@@ -53,7 +53,7 @@ Rule #1 from the plan: **build the working agent first — no observability unti
                                                    │                          │
                                      OTLP http://phoenix:6006          GET /metrics ← Prometheus :9090
                                                    │                          │
-                                          Phoenix Trace Explorer         Grafana :3001 (4 dashboards)
+                                          Phoenix Trace Explorer         Grafana :3002 (4 dashboards)
 ```
 
 Span tree per request (P6–P9): `agent` → { `llm.call`, `retrieval`, `tool.call`, `llm.reasoning`, `final.response` } — each with the attribute sets listed in the tracker above.
@@ -77,5 +77,5 @@ Span tree per request (P6–P9): `agent` → { `llm.call`, `retrieval`, `tool.ca
 
 ## Environment & ports
 
-`ANTHROPIC_API_KEY` (required) · `DATABASE_URL` (P3, default `postgres://postgres:postgres@localhost:5432/agent`) · `OTEL_EXPORTER_OTLP_ENDPOINT` (P6, default `http://localhost:6006/v1/traces`) · `OTEL_SDK_DISABLED=true` (optional; noop SDK when Phoenix is down) · `PORT` (3000).
-Ports: app **3000** · Phoenix **6006** · Postgres **5432** · Prometheus **9090** · Grafana **3001**.
+`ANTHROPIC_API_KEY` (required) · `DATABASE_URL` (P3, default `postgres://postgres:postgres@localhost:5432/agent`) · `OTEL_EXPORTER_OTLP_ENDPOINT` (P6, default `http://localhost:6006/v1/traces`) · `OTEL_SDK_DISABLED=true` (optional; noop SDK when Phoenix is down) · `PORT` (3000). Optional `userId` on `POST /chat` (bounded `[a-zA-Z0-9_-]{1,32}`, else `anonymous`) for Cost/user.
+Ports: app **3000** · Phoenix **6006** · Postgres **5432** · Prometheus **9090** · Grafana **3002** (frontend keeps **3001**).

@@ -1,10 +1,10 @@
 import express, { type NextFunction, type Request, type Response } from "express";
-import { HumanMessage } from "@langchain/core/messages";
+import { AgentInvokeError, invokeAgent } from "./agent/invoke";
 import { buildGraph } from "./agent/graph";
-import { summarizeFlow } from "./agent/flow";
+import { parseScenario } from "./chaos";
 import { initTelemetry, shutdownTelemetry } from "./obs/otel";
-import { SpanName } from "./obs/names";
-import { withSpan } from "./obs/spans";
+import { register } from "./obs/metrics";
+import { resolveRequestId } from "./obs/requestContext";
 
 initTelemetry();
 
@@ -22,9 +22,20 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get("/metrics", async (_req, res) => {
+  res.set("Content-Type", register.contentType);
+  res.send(await register.metrics());
+});
+
+function setCorrelationHeaders(res: Response, requestId: string, traceId?: string): void {
+  res.setHeader("x-request-id", requestId);
+  if (traceId) res.setHeader("x-trace-id", traceId);
+}
+
 app.post("/chat", async (req, res) => {
-  const started = performance.now();
-  const body = req.body as { message?: string } | undefined;
+  const body = req.body as
+    | { message?: string; userId?: string; scenario?: string; requestId?: string }
+    | undefined;
 
   if (body == null || typeof body !== "object" || Array.isArray(body)) {
     res.status(400).json({ error: "invalid JSON body" });
@@ -35,32 +46,44 @@ app.post("/chat", async (req, res) => {
     return;
   }
 
+  let scenario;
   try {
-    let traceId: string | undefined;
-    const responseBody = await withSpan(SpanName.agent, async (span) => {
-      span.setAttribute("user.message.length", body.message!.length);
-      traceId = span.spanContext().traceId;
-      const result = await getGraph().invoke({
-        messages: [new HumanMessage(body.message!)],
-      });
-      const flow = summarizeFlow(result);
-      span.setAttribute("flow.complete", flow.isCompleteFlow);
-      span.setAttribute("flow.steps", flow.steps.join(" → "));
-
-      return {
-        reply: result.finalAnswer,
-        flow: flow.steps,
-        traceId,
-        llmCalls: result.llmCalls,
-        retrievals: result.retrievals,
-        toolCalls: result.toolCalls,
-        durationMs: Math.round(performance.now() - started),
-      };
-    });
-    res.json(responseBody);
+    scenario = parseScenario(body.scenario);
   } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+    return;
+  }
+
+  const requestId = resolveRequestId(req.header("x-request-id") ?? body.requestId);
+
+  try {
+    // llm_timeout needs a short-timeout model; do not reuse the singleton graph.
+    const { result, flow, traceId, durationMs } = await invokeAgent(body.message, {
+      userId: body.userId,
+      requestId,
+      scenario,
+      graph: scenario === "llm_timeout" ? undefined : getGraph(),
+    });
+
+    setCorrelationHeaders(res, requestId, traceId);
+    res.json({
+      reply: result.finalAnswer,
+      flow: flow.steps,
+      requestId,
+      traceId,
+      llmCalls: result.llmCalls,
+      retrievals: result.retrievals,
+      toolCalls: result.toolCalls,
+      durationMs,
+    });
+  } catch (err) {
+    const request = err instanceof AgentInvokeError ? err.requestId : requestId;
+    const traceId = err instanceof AgentInvokeError ? err.traceId : undefined;
+    setCorrelationHeaders(res, request, traceId);
     res.status(500).json({
       error: err instanceof Error ? err.message : String(err),
+      requestId: request,
+      traceId,
     });
   }
 });

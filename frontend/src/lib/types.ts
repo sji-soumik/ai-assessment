@@ -41,6 +41,8 @@ export interface ChatResponse {
   reply: string;
   /** Ordered graph steps, e.g. ["llm.agent","tool.getMortgageRate","llm.reasoning","respond"] */
   flow: string[];
+  requestId?: string;
+  traceId?: string;
   llmCalls: LLMCallRecord[];
   retrievals: RetrievalRecord[];
   toolCalls: ToolCallRecord[];
@@ -49,6 +51,8 @@ export interface ChatResponse {
 
 export interface ChatErrorResponse {
   error: string;
+  requestId?: string;
+  traceId?: string;
 }
 
 export interface HealthResponse {
