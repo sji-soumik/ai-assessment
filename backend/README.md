@@ -4,7 +4,7 @@ TypeScript LangGraph mortgage agent. Setup, API, and current status live in the 
 
 ```bash
 bun install
-cp .env.example .env   # set ANTHROPIC_API_KEY
+cp .env.example .env   # set OPENAI_API_KEY
 bun run dev            # http://localhost:3000
 bun run chat "What is the current base rate?"
 bun test

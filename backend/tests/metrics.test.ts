@@ -36,8 +36,8 @@ const SPEC_METRIC_NAMES = [
 function llm(overrides: Partial<LLMCallRecord> = {}): LLMCallRecord {
   return {
     purpose: "agent",
-    model: "claude-opus-5",
-    provider: "anthropic",
+    model: "gpt-4o",
+    provider: "openai",
     input: "hi",
     output: "hello",
     inputTokens: 10,

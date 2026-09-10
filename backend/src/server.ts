@@ -8,7 +8,7 @@ import { resolveRequestId } from "./obs/requestContext";
 
 initTelemetry();
 
-// Lazy so the server boots (and /health works) even before ANTHROPIC_API_KEY is
+// Lazy so the server boots (and /health works) even before OPENAI_API_KEY is
 // configured; the first /chat surfaces a clear error instead of a boot crash.
 let graph: ReturnType<typeof buildGraph> | undefined;
 const getGraph = () => (graph ??= buildGraph());
