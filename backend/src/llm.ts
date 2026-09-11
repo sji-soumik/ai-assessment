@@ -1,28 +1,23 @@
-import { ChatAnthropic } from "@langchain/anthropic";
+import { ChatOpenAI } from "@langchain/openai";
 
-export const MODEL_ID = "claude-opus-5";
-export const PROVIDER = "anthropic" as const;
+export const MODEL_ID = "gpt-4o";
+export const PROVIDER = "openai" as const;
 
-/** $/1M tokens for claude-opus-5 (used from Phase 7 for cost attribution). */
-export const PRICING = { inputPerMTok: 5.0, outputPerMTok: 25.0 };
+/** $/1M tokens for gpt-4o (used from Phase 7 for cost attribution). */
+export const PRICING = { inputPerMTok: 2.5, outputPerMTok: 10.0 };
 
-/**
- * Single construction point for the LLM.
- * NOTE: never set temperature/top_p/top_k — sampling params are removed on
- * claude-opus-5 and the API rejects them with a 400. `thinking` stays unset
- * (adaptive is the model default).
- */
+/** Single construction point for the LLM. */
 export function makeModel(options: { maxTokens?: number; timeoutMs?: number; maxRetries?: number } = {}) {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.OPENAI_API_KEY) {
     throw new Error(
-      "ANTHROPIC_API_KEY is not set. Copy .env.example to .env and add your key (Bun loads .env automatically).",
+      "OPENAI_API_KEY is not set. Copy .env.example to .env and add your key (Bun loads .env automatically).",
     );
   }
-  return new ChatAnthropic({
+  return new ChatOpenAI({
     model: MODEL_ID,
     maxTokens: options.maxTokens ?? 2048,
     // Production default: 30s. Chaos (Phase 14) lowers this to force timeouts.
-    clientOptions: { timeout: options.timeoutMs ?? 30_000 },
+    timeout: options.timeoutMs ?? 30_000,
     maxRetries: options.maxRetries ?? 2,
   });
 }

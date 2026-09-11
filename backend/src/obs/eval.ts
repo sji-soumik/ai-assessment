@@ -55,7 +55,7 @@ export async function evaluateGroundedness(input: {
   model?: BaseChatModel;
 }): Promise<GroundednessVerdict | null> {
   if (input.retrievals.length === 0) return null;
-  if (!input.model && !process.env.ANTHROPIC_API_KEY) return null;
+  if (!input.model && !process.env.OPENAI_API_KEY) return null;
 
   try {
     const model = input.model ?? makeModel({ maxTokens: 64, timeoutMs: 15_000 });

@@ -56,7 +56,7 @@ export function textOf(message: AgentMessage | undefined): string {
 }
 
 // The base chat-model type doesn't declare a `tools` call option, but concrete
-// models (ChatAnthropic) accept one and test doubles ignore it. Passing tools
+// models (ChatOpenAI) accept one and test doubles ignore it. Passing tools
 // this way keeps `model.invoke` the single seam that tests can stub, unlike
 // bindTools which wraps the model in a new runnable.
 const withTools = (options: { tools: typeof BINDABLE_TOOLS }): BaseChatModelCallOptions =>

@@ -106,8 +106,8 @@ describe("OpenTelemetry span tree (Phase 6)", () => {
     await flushTelemetry();
 
     const llm = memory.getFinishedSpans().find((s) => s.name === SpanName.llmCall)!;
-    expect(llm.attributes["gen_ai.system"]).toBe("anthropic");
-    expect(llm.attributes["gen_ai.request.model"]).toBe("claude-opus-5");
+    expect(llm.attributes["gen_ai.system"]).toBe("openai");
+    expect(llm.attributes["gen_ai.request.model"]).toBe("gpt-4o");
     expect(llm.attributes["llm.cost_usd"]).toBeDefined();
   });
 

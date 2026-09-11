@@ -28,7 +28,7 @@ describe("agent graph (fake model)", () => {
     const call = result.llmCalls[0]!;
     expect(call.status).toBe("success");
     expect(call.purpose).toBe("agent");
-    expect(call.model).toBe("claude-opus-5");
+    expect(call.model).toBe("gpt-4o");
     expect(call.latencyMs).toBeGreaterThanOrEqual(0);
     expect(call.output).toBe("ok");
   });
@@ -143,8 +143,8 @@ describe("decision routing", () => {
   });
 });
 
-describe("live LLM (auto-skipped without ANTHROPIC_API_KEY)", () => {
-  test.skipIf(!process.env.ANTHROPIC_API_KEY)(
+describe("live LLM (auto-skipped without OPENAI_API_KEY)", () => {
+  test.skipIf(!process.env.OPENAI_API_KEY)(
     "Phase 2 acceptance: real answer with real token usage",
     async () => {
       const graph = buildGraph();
@@ -160,7 +160,7 @@ describe("live LLM (auto-skipped without ANTHROPIC_API_KEY)", () => {
     180_000,
   );
 
-  test.skipIf(!process.env.ANTHROPIC_API_KEY || !process.env.DATABASE_URL)(
+  test.skipIf(!process.env.OPENAI_API_KEY || !process.env.DATABASE_URL)(
     "Phase 5 acceptance: live complete flow with retrieval + tool + reasoning",
     async () => {
       const graph = buildGraph();

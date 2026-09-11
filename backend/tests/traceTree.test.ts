@@ -8,8 +8,8 @@ describe("Phase 11 trace tree", () => {
       llmCalls: [
         {
           purpose: "agent",
-          model: "claude-opus-5",
-          provider: "anthropic",
+          model: "gpt-4o",
+          provider: "openai",
           input: "q",
           output: "",
           inputTokens: 10,
@@ -19,8 +19,8 @@ describe("Phase 11 trace tree", () => {
         },
         {
           purpose: "reasoning",
-          model: "claude-opus-5",
-          provider: "anthropic",
+          model: "gpt-4o",
+          provider: "openai",
           input: "q",
           output: "done",
           inputTokens: 20,
@@ -59,7 +59,7 @@ describe("Phase 11 trace tree", () => {
     expect(tree).toContain("Trace ID: abc123");
     expect(tree).toContain("Agent");
     expect(tree).toContain("LLM Call");
-    expect(tree).toContain("Model: claude-opus-5");
+    expect(tree).toContain("Model: gpt-4o");
     expect(tree).toContain("Retrieval");
     expect(tree).toContain("Query: FHA overlay");
     expect(tree).toContain("Documents: product-overlays.md");
@@ -77,8 +77,8 @@ describe("Phase 11 trace tree", () => {
       llmCalls: [
         {
           purpose: "agent",
-          model: "claude-opus-5",
-          provider: "anthropic",
+          model: "gpt-4o",
+          provider: "openai",
           input: "q",
           output: "",
           inputTokens: 80_000,
