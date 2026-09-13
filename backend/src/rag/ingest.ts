@@ -52,7 +52,7 @@ export async function ingest(): Promise<IngestResult> {
       const documentId = Number(doc!.id);
 
       for (const content of pieces) {
-        const embedding = toVectorLiteral(embed(content));
+        const embedding = toVectorLiteral(await embed(content));
         await tx`
           INSERT INTO chunks (document_id, content, embedding)
           VALUES (${documentId}, ${content}, ${embedding}::vector)
