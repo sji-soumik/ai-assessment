@@ -30,6 +30,6 @@
     "chat": "bun src/chat.ts",
     "demo": "bun src/demo.ts",
     "ingest": "bun src/rag/ingest.ts",
-    "test": "bun test"
+    "test": "LOG_LEVEL=silent bun test"
   }
 }

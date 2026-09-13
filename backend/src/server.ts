@@ -2,9 +2,10 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { AgentInvokeError, invokeAgent } from "./agent/invoke";
 import { buildGraph } from "./agent/graph";
 import { parseScenario } from "./chaos";
+import { devLog } from "./obs/logger";
 import { initTelemetry, shutdownTelemetry } from "./obs/otel";
 import { register } from "./obs/metrics";
-import { resolveRequestId } from "./obs/requestContext";
+import { resolveRequestId, runWithRequestContext } from "./obs/requestContext";
 
 initTelemetry();
 
@@ -17,6 +18,26 @@ const port = Number(process.env.PORT ?? 3000);
 const app = express();
 
 app.use(express.json());
+
+/** Bind request id early; dev-debug HTTP logging when LOG_LEVEL=debug. */
+app.use((req, res, next) => {
+  const body =
+    req.body != null && typeof req.body === "object" && !Array.isArray(req.body)
+      ? (req.body as { requestId?: string })
+      : undefined;
+  const requestId = resolveRequestId(req.header("x-request-id") ?? body?.requestId);
+
+  runWithRequestContext({ requestId }, () => {
+    const started = performance.now();
+    res.on("finish", () => {
+      const durationMs = Math.round(performance.now() - started);
+      devLog.debug(
+        `http ${req.method} ${req.path} ${res.statusCode} ${durationMs}ms`,
+      );
+    });
+    next();
+  });
+});
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
@@ -55,6 +76,10 @@ app.post("/chat", async (req, res) => {
   }
 
   const requestId = resolveRequestId(req.header("x-request-id") ?? body.requestId);
+
+  devLog.debug(
+    `chat user=${body.userId ?? "anonymous"} scenario=${scenario ?? "none"} len=${body.message.length}`,
+  );
 
   try {
     // llm_timeout needs a short-timeout model; do not reuse the singleton graph.
@@ -98,13 +123,14 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
 
 const server = app.listen(port, () => {
   console.log(`ai-agent listening on http://localhost:${port}`);
+  devLog.debug(`server started on port ${port}`);
 });
 
 let shuttingDown = false;
 const onSignal = (signal: string) => {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`received ${signal}, flushing telemetry`);
+  devLog.debug(`shutting down (${signal}), flushing telemetry`);
   void shutdownTelemetry()
     .catch((err) => {
       console.error("telemetry shutdown failed:", err);
