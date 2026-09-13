@@ -5,31 +5,34 @@ import { DEFAULT_TOP_K, similaritySearch } from "../src/rag/search";
 import { ingest } from "../src/rag/ingest";
 
 describe("embeddings", () => {
-  test("deterministic and EMBEDDING_DIM long", () => {
-    const a = embed("What is the FHA credit overlay?");
-    const b = embed("What is the FHA credit overlay?");
-    expect(a).toHaveLength(EMBEDDING_DIM);
-    expect(a).toEqual(b);
-  });
-
-  test("non-empty text yields a unit vector", () => {
-    const v = embed("conventional loan-to-value overlay");
-    const norm = Math.sqrt(v.reduce((s, x) => s + x * x, 0));
-    expect(norm).toBeCloseTo(1, 6);
-  });
-
-  test("empty text yields a zero vector", () => {
-    const v = embed("   ");
-    expect(v.every((x) => x === 0)).toBe(true);
-  });
-
-  test("different text yields a different vector", () => {
-    expect(embed("fha overlay")).not.toEqual(embed("va funding fee"));
-  });
-
   test("toVectorLiteral formats a pgvector literal", () => {
     expect(toVectorLiteral([0.1, -0.2, 0.3])).toBe("[0.1,-0.2,0.3]");
   });
+
+  test.skipIf(!process.env.OPENAI_API_KEY)(
+    "OpenAI embed returns EMBEDDING_DIM vector",
+    async () => {
+      const v = await embed("What is the FHA credit overlay?");
+      expect(v).toHaveLength(EMBEDDING_DIM);
+      expect(v.every(Number.isFinite)).toBe(true);
+    },
+  );
+
+  test.skipIf(!process.env.OPENAI_API_KEY)(
+    "same text yields identical embeddings",
+    async () => {
+      const a = await embed("What is the FHA credit overlay?");
+      const b = await embed("What is the FHA credit overlay?");
+      expect(a).toEqual(b);
+    },
+  );
+
+  test.skipIf(!process.env.OPENAI_API_KEY)(
+    "different text yields different vectors",
+    async () => {
+      expect(await embed("fha overlay")).not.toEqual(await embed("va funding fee"));
+    },
+  );
 });
 
 describe("chunking", () => {

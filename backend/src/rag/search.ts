@@ -28,7 +28,7 @@ function overlayBadRetrieval(hits: RetrievalHit[]): RetrievalHit[] {
 
 async function search(query: string, topK: number): Promise<RetrievalHit[]> {
   const sql = getSql();
-  const queryVector = toVectorLiteral(embed(query));
+  const queryVector = toVectorLiteral(await embed(query));
 
   const rows = await sql`
     SELECT
