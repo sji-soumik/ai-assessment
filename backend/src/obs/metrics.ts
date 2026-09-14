@@ -1,12 +1,12 @@
 import { Counter, Histogram, Registry } from "prom-client";
 import { llmCostUsd } from "./cost";
+import { BAD_RETRIEVAL_THRESHOLD, retrievalQuality } from "../chaos";
 import type { LLMCallRecord, RetrievalRecord, ToolCallRecord } from "../agent/state";
 
 /** Dedicated registry so /metrics stays agent-focused (no default process metrics). */
 export const register = new Registry();
 
-/** Max cosine similarity below this counts as a bad retrieval (P14 band is ~0.2–0.3). */
-export const BAD_RETRIEVAL_THRESHOLD = 0.35;
+export { BAD_RETRIEVAL_THRESHOLD };
 
 const USER_ID_RE = /^[a-zA-Z0-9_-]{1,32}$/;
 
@@ -170,9 +170,8 @@ export function recordRetrieval(record: RetrievalRecord): void {
   for (const score of record.similarityScores) {
     retrievalSimilarity.observe(score);
   }
-  if (record.status === "success") {
-    const maxScore = record.similarityScores.length > 0 ? Math.max(...record.similarityScores) : 0;
-    if (maxScore < BAD_RETRIEVAL_THRESHOLD) retrievalBelowThresholdTotal.inc();
+  if (record.status === "success" && retrievalQuality(record.similarityScores) === "poor") {
+    retrievalBelowThresholdTotal.inc();
   }
 }
 

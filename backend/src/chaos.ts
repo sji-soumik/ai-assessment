@@ -1,4 +1,3 @@
-import { BAD_RETRIEVAL_THRESHOLD } from "./obs/metrics";
 import { currentRequestContext } from "./obs/requestContext";
 
 export const CHAOS_SCENARIOS = [
@@ -18,6 +17,8 @@ export interface ChaosOverrides {
   tokenPadEnabled?: boolean;
 }
 
+/** Max cosine similarity below this counts as a bad retrieval (P14 band is ~0.2–0.3). */
+export const BAD_RETRIEVAL_THRESHOLD = 0.35;
 export const SLOW_TOOL_DELAY_MS = 8_000;
 export const SLOW_TOOL_WARN_MS = 5_000;
 export const BAD_RETRIEVAL_SCORES = [0.31, 0.28, 0.24] as const;
@@ -39,10 +40,6 @@ export function parseScenario(raw: unknown): ChaosScenario | undefined {
   throw new Error(
     `unknown scenario "${String(raw)}". Expected one of: ${CHAOS_SCENARIOS.join(", ")}`,
   );
-}
-
-export function currentScenario(): ChaosScenario | undefined {
-  return currentRequestContext()?.scenario;
 }
 
 function sleep(ms: number): Promise<void> {

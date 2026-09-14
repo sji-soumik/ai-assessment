@@ -1,11 +1,13 @@
 // Phase 14 failure-scenario runner: bun run demo <scenario>
-// Live Claude + Phoenix. token_heavy sends ~80k input tokens (~$0.40).
+// Live OpenAI (gpt-4o) + Phoenix. token_heavy sends ~80k input tokens.
 import { AgentInvokeError, invokeAgent } from "./agent/invoke";
 import {
   CHAOS_SCENARIOS,
   isChaosScenario,
+  TOKEN_HEAVY_TARGET_TOKENS,
   type ChaosScenario,
 } from "./chaos";
+import { MODEL_ID, PRICING } from "./llm";
 import { flushTelemetry, initTelemetry, shutdownTelemetry } from "./obs/otel";
 import { formatTraceTree } from "./obs/traceTree";
 
@@ -19,11 +21,13 @@ const DEMO_PROMPTS: Record<ChaosScenario, string> = {
   llm_timeout: "What is the current base rate?",
 };
 
+const TOKEN_HEAVY_COST_USD = ((TOKEN_HEAVY_TARGET_TOKENS / 1_000_000) * PRICING.inputPerMTok).toFixed(2);
+
 const EXPECTED: Record<ChaosScenario, string> = {
   slow_tool: "Tool Call latency ~8s (p95 ↑ on Grafana Performance)",
   tool_failure: "Tool Status: ERROR, Error: Connection refused (request still completes)",
   bad_retrieval: "Retrieval Quality: Poor, scores 0.31 / 0.28 / 0.24",
-  token_heavy: "LLM input tokens 80,000+ and cost spike (Grafana Cost). ~$0.40 at Opus 5 rates.",
+  token_heavy: `LLM input tokens ${TOKEN_HEAVY_TARGET_TOKENS.toLocaleString()}+ and cost spike (Grafana Cost). ~$${TOKEN_HEAVY_COST_USD} at ${MODEL_ID} rates.`,
   llm_timeout: "LLM Status: ERROR, Error: Request timeout (request fails)",
 };
 
@@ -33,7 +37,7 @@ function printUsage(): void {
 Scenarios:
 ${CHAOS_SCENARIOS.map((s) => `  ${s.padEnd(16)} ${EXPECTED[s]}`).join("\n")}
 
-token_heavy hits the live API with ~80k input tokens (~$0.40). Tests never do this.
+token_heavy hits the live API with ~80k input tokens (~$${TOKEN_HEAVY_COST_USD}). Tests never do this.
 `);
 }
 

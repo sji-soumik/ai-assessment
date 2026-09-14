@@ -4,7 +4,7 @@ import type { AgentState } from "../state";
 export type AgentRoute = "retrieval" | "tool" | "respond";
 
 /** Tool-call names that mean "search the knowledge base" (handled by retrieval). */
-export const RETRIEVAL_TOOL_NAMES = new Set(["retrieve", "search_knowledge_base"]);
+export const RETRIEVAL_TOOL_NAMES = new Set(["retrieve"]);
 
 export function isRetrievalTool(name: string): boolean {
   return RETRIEVAL_TOOL_NAMES.has(name);

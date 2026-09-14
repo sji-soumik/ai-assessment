@@ -5,7 +5,7 @@ import { llmCostUsd } from "./cost";
 
 const MAX_ATTR_LEN = 600;
 
-function truncate(value: string, max = MAX_ATTR_LEN): string {
+export function truncate(value: string, max = MAX_ATTR_LEN): string {
   return value.length > max ? value.slice(0, max) + "…" : value;
 }
 
