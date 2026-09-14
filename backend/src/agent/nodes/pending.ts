@@ -12,7 +12,7 @@ export interface PendingToolCall {
  * "pending" when its name passes `matches` and no ToolMessage has answered its
  * id yet. This lets retrieval and tool nodes each handle their own calls from a
  * single AI message without double-answering — and guarantees every tool_use
- * eventually gets a tool_result (Anthropic rejects a turn otherwise).
+ * eventually gets a tool_result (the provider rejects a turn otherwise).
  */
 export function pendingToolCalls(
   messages: AgentState["messages"],

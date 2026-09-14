@@ -76,7 +76,8 @@ function resolveGraph(
 
 /**
  * One user request: root `agent` span, graph invoke, request-level metrics,
- * then (outside the span) the groundedness judge so Phoenix's demo tree stays clean.
+ * then (outside the span, fire-and-forget) the groundedness judge so Phoenix's
+ * demo tree stays clean and the response isn't held up waiting on the judge.
  */
 export async function invokeAgent(
   message: string,
@@ -92,6 +93,7 @@ export async function invokeAgent(
       const graph = resolveGraph(options, scenario);
       const started = performance.now();
       let traceId: string | undefined;
+      let flow!: FlowSummary;
 
       try {
         const result = await withSpan(SpanName.agent, async (span) => {
@@ -103,7 +105,7 @@ export async function invokeAgent(
           const invoked = await graph.invoke({
             messages: [new HumanMessage(message)],
           });
-          const flow = summarizeFlow(invoked);
+          flow = summarizeFlow(invoked);
           span.setAttribute("flow.complete", flow.isCompleteFlow);
           span.setAttribute("flow.steps", flow.steps.join(" → "));
           return invoked;
@@ -118,15 +120,16 @@ export async function invokeAgent(
         });
 
         if (options.evaluate !== false) {
-          const verdict = await evaluateGroundedness({
+          void evaluateGroundedness({
             answer: result.finalAnswer,
             retrievals: result.retrievals,
             toolCalls: result.toolCalls,
+          }).then((verdict) => {
+            if (verdict) recordGroundedness(verdict);
           });
-          if (verdict) recordGroundedness(verdict);
         }
 
-        return { result, flow: summarizeFlow(result), requestId, traceId, durationMs, user };
+        return { result, flow, requestId, traceId, durationMs, user };
       } catch (err) {
         const durationMs = Math.round(performance.now() - started);
         recordAgentRequest({

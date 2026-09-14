@@ -6,7 +6,7 @@ import type {
 import type { BaseMessage } from "@langchain/core/messages";
 import { LLM_TIMEOUT_MESSAGE, tokenHeavyPadding } from "../../chaos";
 import { MODEL_ID, PROVIDER } from "../../llm";
-import { setLlmSpanAttrs } from "../../obs/attrs";
+import { setLlmSpanAttrs, truncate } from "../../obs/attrs";
 import { isLlmTimeout, recordLlmCall } from "../../obs/metrics";
 import { llmSpanName } from "../../obs/names";
 import { currentTraceId } from "../../obs/otel";
@@ -48,7 +48,7 @@ function systemPrompt(purpose: LLMCallRecord["purpose"]): string {
   return purpose === "reasoning" ? REASONING_PROMPT : AGENT_PROMPT;
 }
 
-export const truncate = (s: string, n = 600) => (s.length > n ? s.slice(0, n) + "…" : s);
+export { truncate };
 
 export function textOf(message: AgentMessage | undefined): string {
   if (!message) return "";
@@ -73,6 +73,7 @@ export function makeLlmNode(model: BaseChatModel, purpose: LLMCallRecord["purpos
       const input = [new SystemMessage(prompt), ...state.messages] as BaseMessage[];
       const started = performance.now();
       const prefix = () => correlationPrefix(currentTraceId());
+      const truncatedInput = truncate(textOf(state.messages.at(-1)));
 
       try {
         const response = (await model.invoke(input, withTools({ tools: BINDABLE_TOOLS }))) as AIMessage;
@@ -80,7 +81,7 @@ export function makeLlmNode(model: BaseChatModel, purpose: LLMCallRecord["purpos
           purpose,
           model: MODEL_ID,
           provider: PROVIDER,
-          input: truncate(textOf(state.messages.at(-1))),
+          input: truncatedInput,
           output: truncate(textOf(toAgentMessage(response))),
           inputTokens: response.usage_metadata?.input_tokens ?? 0,
           outputTokens: response.usage_metadata?.output_tokens ?? 0,
@@ -105,7 +106,7 @@ export function makeLlmNode(model: BaseChatModel, purpose: LLMCallRecord["purpos
           purpose,
           model: MODEL_ID,
           provider: PROVIDER,
-          input: truncate(textOf(state.messages.at(-1))),
+          input: truncatedInput,
           output: "",
           inputTokens: 0,
           outputTokens: 0,
