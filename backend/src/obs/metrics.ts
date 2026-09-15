@@ -5,8 +5,6 @@ import type { LLMCallRecord, RetrievalRecord, ToolCallRecord } from "../agent/st
 /** Dedicated registry so /metrics stays agent-focused (no default process metrics). */
 export const register = new Registry();
 
-export { BAD_RETRIEVAL_THRESHOLD };
-
 const USER_ID_RE = /^[a-zA-Z0-9_-]{1,32}$/;
 
 /** Coerce free-text user ids to a bounded label. Invalid values become `anonymous`. */

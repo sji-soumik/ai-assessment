@@ -1,9 +1,8 @@
-import { AIMessage, SystemMessage } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 import type {
   BaseChatModel,
   BaseChatModelCallOptions,
 } from "@langchain/core/language_models/chat_models";
-import type { BaseMessage } from "@langchain/core/messages";
 import { LLM_TIMEOUT_MESSAGE, tokenHeavyPadding } from "../../chaos";
 import { MODEL_ID, PROVIDER } from "../../llm";
 import { llmCostUsd } from "../../obs/cost";
@@ -13,9 +12,9 @@ import { llmSpanName } from "../../obs/names";
 import { currentTraceId } from "../../obs/otel";
 import { correlationPrefix } from "../../obs/requestContext";
 import { withSpan } from "../../obs/spans";
-import { toAgentMessage } from "../messages";
+import { textOf, toAgentMessage } from "../messages";
 import { BINDABLE_TOOLS } from "../tools";
-import type { AgentMessage, AgentState, LLMCallRecord } from "../state";
+import type { AgentState, LLMCallRecord } from "../state";
 
 const AGENT_PROMPT = `You are a mortgage-lending assistant for an internal team.
 You answer questions about base rates, mortgage rates, products, and lending policy.
@@ -47,13 +46,6 @@ You have already called tools and received their results in the conversation. Yo
 
 function systemPrompt(purpose: LLMCallRecord["purpose"]): string {
   return purpose === "reasoning" ? REASONING_PROMPT : AGENT_PROMPT;
-}
-
-export { truncate };
-
-export function textOf(message: AgentMessage | undefined): string {
-  if (!message) return "";
-  return typeof message.content === "string" ? message.content : JSON.stringify(message.content);
 }
 
 // The base chat-model type doesn't declare a `tools` call option, but concrete

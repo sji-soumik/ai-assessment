@@ -18,8 +18,6 @@ import { makeModel } from "../llm";
  * handles its own pending calls; tool no-ops when there is nothing left to run.
  */
 export function buildGraph(model: BaseChatModel = makeModel()) {
-  const route = routeAfterLlm;
-
   return new StateGraph(AgentStateAnnotation)
     .addNode("agent", makeLlmNode(model, "agent"))
     .addNode("retrieval", retrievalNode)
@@ -27,14 +25,14 @@ export function buildGraph(model: BaseChatModel = makeModel()) {
     .addNode("reasoning", makeLlmNode(model, "reasoning"))
     .addNode("respond", respondNode)
     .addEdge(START, "agent")
-    .addConditionalEdges("agent", route, {
+    .addConditionalEdges("agent", routeAfterLlm, {
       retrieval: "retrieval",
       tool: "tool",
       respond: "respond",
     })
     .addEdge("retrieval", "tool")
     .addEdge("tool", "reasoning")
-    .addConditionalEdges("reasoning", route, {
+    .addConditionalEdges("reasoning", routeAfterLlm, {
       retrieval: "retrieval",
       tool: "tool",
       respond: "respond",

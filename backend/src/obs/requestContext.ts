@@ -30,10 +30,6 @@ export function currentRequestId(): string | undefined {
   return storage.getStore()?.requestId;
 }
 
-export function runWithRequestContext<T>(ctx: RequestContext, fn: () => T): T {
-  return storage.run(ctx, fn);
-}
-
 export async function runWithRequestContextAsync<T>(
   ctx: RequestContext,
   fn: () => Promise<T>,

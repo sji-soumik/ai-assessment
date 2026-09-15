@@ -134,7 +134,6 @@ export async function invokeAgent(
           durationSeconds: durationMs / 1000,
           costUsd: 0,
         });
-        if (err instanceof AgentInvokeError) throw err;
         const messageText = isLlmTimeout(err)
           ? LLM_TIMEOUT_MESSAGE
           : err instanceof Error

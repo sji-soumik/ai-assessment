@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
+import { BAD_RETRIEVAL_THRESHOLD } from "../src/chaos";
 import {
-  BAD_RETRIEVAL_THRESHOLD,
   isLlmTimeout,
   recordAgentRequest,
   recordGroundedness,

@@ -1,5 +1,6 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { textOf } from "../agent/messages";
 import type { RetrievalRecord, ToolCallRecord } from "../agent/state";
 import { makeModel } from "../llm";
 
@@ -63,8 +64,7 @@ export async function evaluateGroundedness(input: {
       new SystemMessage(JUDGE_SYSTEM),
       new HumanMessage(buildJudgePrompt(input)),
     ]);
-    const text = typeof response.content === "string" ? response.content : JSON.stringify(response.content);
-    return parseVerdict(text);
+    return parseVerdict(textOf(response));
   } catch {
     return "error";
   }

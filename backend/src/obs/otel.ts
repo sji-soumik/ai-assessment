@@ -90,4 +90,3 @@ export async function flushTelemetry(): Promise<void> {
   await provider?.forceFlush();
 }
 
-export { SERVICE_NAME, SERVICE_VERSION };
