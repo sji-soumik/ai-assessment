@@ -10,8 +10,7 @@ initTelemetry();
 
 // Lazy so the server boots (and /health works) even before OPENAI_API_KEY is
 // configured; the first /chat surfaces a clear error instead of a boot crash.
-let graph: ReturnType<typeof buildGraph> | undefined;
-const getGraph = () => (graph ??= buildGraph());
+const getGraph = () => buildGraph();
 
 const port = Number(process.env.PORT ?? 3000);
 const app = express();
@@ -33,33 +32,21 @@ function setCorrelationHeaders(res: Response, requestId: string, traceId?: strin
 }
 
 app.post("/chat", async (req, res) => {
-  const body = req.body as
-    | { message?: string; userId?: string; scenario?: string; requestId?: string }
-    | undefined;
+  const body = req.body as { message?: unknown; userId?: unknown; scenario?: unknown; requestId?: unknown } | undefined;
 
-  if (body == null || typeof body !== "object" || Array.isArray(body)) {
-    res.status(400).json({ error: "invalid JSON body" });
-    return;
-  }
-  if (!body.message) {
+  if (!body || typeof body.message !== "string") {
     res.status(400).json({ error: "missing 'message' field" });
     return;
   }
 
-  let scenario;
-  try {
-    scenario = parseScenario(body.scenario);
-  } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
-    return;
-  }
+  const scenario = parseScenario(body.scenario);
 
   const requestId = resolveRequestId(req.header("x-request-id") ?? body.requestId);
 
   try {
     // llm_timeout needs a short-timeout model; do not reuse the singleton graph.
     const { result, flow, traceId, durationMs } = await invokeAgent(body.message, {
-      userId: body.userId,
+      userId: body.userId as string | undefined,
       requestId,
       scenario,
       graph: scenario === "llm_timeout" ? undefined : getGraph(),

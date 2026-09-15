@@ -1,0 +1,203 @@
+Live URLs (click while services are running)
+What	URL	What you'll see
+Chat UI (pipeline + tool capture)
+http://localhost:3001
+Left: pipeline steps. Right: Tools / LLM / RAG tabs
+Backend health
+http://localhost:3000/health
+{"ok":true}
+Raw metrics (tool counters)
+http://localhost:3000/metrics
+Search for tool_requests_total, tool_latency_seconds, tool_errors_total
+Phoenix traces
+http://localhost:6006
+Paste traceId → see tool.call and retrieval spans
+Grafana Performance
+http://localhost:3002/d/agent-performance
+Tool p95 latency
+Grafana Reliability
+http://localhost:3002/d/agent-reliability
+Tool error rate
+Grafana Cost
+http://localhost:3002/d/agent-cost
+LLM token/cost (not tools)
+Grafana Quality
+http://localhost:3002/d/agent-quality
+RAG quality + groundedness
+Prometheus
+http://localhost:9090
+Raw scrape data
+The 2 tools (definitions — start here)
+Tool	File	What it does
+getMortgageRate
+backend/src/tools/getMortgageRate.ts
+Live rates from in-memory RATE_TABLE
+retrieve
+backend/src/agent/tools.ts
+RAG schema only (execution is in retrieval node)
+Both are registered for the LLM here:
+
+backend/src/agent/tools.ts — BINDABLE_TOOLS = [RETRIEVE_TOOL, MORTGAGE_RATE_TOOL]
+backend/src/agent/nodes/llm.ts — passed into model.invoke(..., { tools })
+Tool execution flow (internal code)
+Follow this order when reviewing:
+
+1. LLM decides tools
+   → backend/src/agent/nodes/llm.ts
+2. Router picks retrieval vs tool node
+   → backend/src/agent/nodes/route.ts
+3. Find pending tool calls
+   → backend/src/agent/nodes/pending.ts
+4. Execute retrieve (RAG)
+   → backend/src/agent/nodes/retrieval.ts
+   → backend/src/rag/search.ts
+5. Execute getMortgageRate
+   → backend/src/agent/nodes/tool.ts
+   → backend/src/tools/getMortgageRate.ts
+6. Graph wiring
+   → backend/src/agent/graph.ts
+7. State capture (what gets recorded)
+   → backend/src/agent/state.ts
+   → backend/src/agent/flow.ts
+Step	File	Role
+Graph topology
+backend/src/agent/graph.ts
+agent → retrieval → tool → reasoning → respond
+Routing
+backend/src/agent/nodes/route.ts
+retrieve → retrieval node; getMortgageRate → tool node
+Pending calls
+backend/src/agent/nodes/pending.ts
+Which tool calls still need answers
+RAG execution
+backend/src/agent/nodes/retrieval.ts
+Runs retrieve against Postgres
+Rate execution
+backend/src/agent/nodes/tool.ts
+Runs getMortgageRate
+Flow summary
+backend/src/agent/flow.ts
+flow.steps like tool.getMortgageRate
+Request wrapper
+backend/src/agent/invoke.ts
+Root span + metrics + judge
+HTTP entry
+backend/src/server.ts
+Returns toolCalls, llmCalls, flow in JSON
+Observability (what is "watching" tools)
+What watches	File
+Span names (tool.call, retrieval, llm.call)
+backend/src/obs/names.ts
+Span attributes on tool calls
+backend/src/obs/attrs.ts
+Prometheus metrics (tool_*)
+backend/src/obs/metrics.ts
+OTel export → Phoenix
+backend/src/obs/otel.ts
+Span wrapper
+backend/src/obs/spans.ts
+CLI trace tree printout
+backend/src/obs/traceTree.ts
+Request / trace correlation
+backend/src/obs/requestContext.ts
+Failure injection on tools
+backend/src/chaos.ts
+Groundedness judge (checks tool results)
+backend/src/obs/eval.ts
+Grafana dashboards:
+
+backend/ops/grafana/dashboards/
+backend/ops/prometheus.yml
+Frontend (visual tool review)
+File	What it shows
+frontend/src/components/ChatApp.tsx
+Main chat + failure scenario dropdown
+frontend/src/components/AgentPipeline.tsx
+Visual pipeline (🧠 agent → 📚 RAG → 🔧 tool → 💭 reasoning)
+frontend/src/components/CapturePanel.tsx
+Tools tab — name, args, result, latency, status
+frontend/src/lib/pipeline.ts
+Builds pipeline from toolCalls / retrievals
+frontend/src/lib/types.ts
+TypeScript types for capture data
+frontend/src/app/api/chat/route.ts
+Proxies to backend :3000
+Knowledge base (what retrieve searches)
+Doc	File
+FHA / conventional overlays
+backend/rag/docs/product-overlays.md
+Base rate pricing rules
+backend/rag/docs/base-rate-pricing.md
+Underwriting notes
+backend/rag/docs/underwriting-notes.md
+Ingest script
+backend/src/rag/ingest.ts
+Tests (verify tools work)
+Test file	What it checks
+backend/tests/tool.test.ts
+getMortgageRate lookup + chaos
+backend/tests/retrieval.test.ts
+RAG search
+backend/tests/agent.test.ts
+Full graph: agent → tool → reasoning
+backend/tests/flow.test.ts
+isCompleteFlow / step order
+backend/tests/observability.test.ts
+Span tree includes tool.call
+backend/tests/metrics.test.ts
+tool_requests_total etc.
+Run all:
+
+cd backend && bun test
+Docs / ADRs
+Doc	Link
+Agent conventions
+backend/AGENT.md
+Full spec (18 phases)
+backend/SPEC.md
+Why in-process rate table
+docs/adr/0001-in-process-rate-table.md
+Why explicit OTel spans
+docs/adr/0002-explicit-withspan-otel.md
+Main README
+README.md
+Quick verification checklist
+Run these and check the linked places above:
+
+#	Command / action	Check in
+1
+curl http://localhost:3000/health
+Browser → health URL
+2
+bun run chat "What is the current base rate?"
+Terminal → [tool] getMortgageRate ok
+3
+Same request via UI
+http://localhost:3001 → Tools tab shows getMortgageRate
+4
+Copy traceId from response
+http://localhost:6006 → tool.call span
+5
+curl http://localhost:3000/metrics | grep tool_
+tool_requests_total increased
+6
+bun run chat -- --scenario tool_failure "base rate?"
+Tool status=error, answer doesn't invent 6.0%
+7
+bun run chat "FHA overlay and 30yr FHA rate?"
+Flow has retrieval + tool.getMortgageRate + 2 LLM calls
+What "working fine" looks like
+For "What is the current base rate?":
+
+flow: ["llm.agent", "tool.getMortgageRate", "llm.reasoning", "respond"]
+toolCalls[0].name: "getMortgageRate"
+toolCalls[0].status: "success"
+toolCalls[0].result: ratePercent 6.0
+llmCalls: 2 (agent + reasoning)
+For "What is the FHA credit overlay and 30-year FHA rate?" (needs ingest):
+
+flow: ["llm.agent", "retrieval", "tool.getMortgageRate", "llm.reasoning", "respond"]
+retrievals[0].status: "success"
+toolCalls[0].status: "success"
+isCompleteFlow: true
+If you want, I can walk through one live request with you step-by-step and tell you exactly what to click in Phoenix vs the UI vs the terminal logs.
