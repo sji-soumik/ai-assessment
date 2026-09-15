@@ -1,5 +1,4 @@
 import { Counter, Histogram, Registry } from "prom-client";
-import { llmCostUsd } from "./cost";
 import { BAD_RETRIEVAL_THRESHOLD, retrievalQuality } from "../chaos";
 import type { LLMCallRecord, RetrievalRecord, ToolCallRecord } from "../agent/state";
 
@@ -152,8 +151,7 @@ export function recordLlmCall(record: LLMCallRecord, timedOut = false): void {
   llmLatencySeconds.observe(labels, record.latencyMs / 1000);
   if (record.inputTokens > 0) llmInputTokensTotal.inc(record.inputTokens);
   if (record.outputTokens > 0) llmOutputTokensTotal.inc(record.outputTokens);
-  const cost = llmCostUsd(record.inputTokens, record.outputTokens);
-  if (cost > 0) llmCostDollarsTotal.inc(cost);
+  if (record.costUsd > 0) llmCostDollarsTotal.inc(record.costUsd);
   if (timedOut) llmTimeoutsTotal.inc();
 }
 

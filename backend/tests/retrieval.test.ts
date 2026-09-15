@@ -34,6 +34,8 @@ describe("Phase 14 bad_retrieval chaos", () => {
     );
     expect(hits.map((h) => h.score)).toEqual([0.31, 0.28, 0.24]);
     expect(hits).toHaveLength(3);
+    expect(hits.every((h) => h.sourcePath === "chaos/poor-match.md")).toBe(true);
+    expect(hits.map((h) => h.content).join("\n")).not.toMatch(/580|product-overlays/i);
   });
 
   test("graph retrieval span/record carries poor scores", async () => {
@@ -53,6 +55,12 @@ describe("Phase 14 bad_retrieval chaos", () => {
     expect(result.retrievals).toHaveLength(1);
     expect(result.retrievals[0]!.similarityScores).toEqual([0.31, 0.28, 0.24]);
     expect(retrievalQuality(result.retrievals[0]!.similarityScores)).toBe("poor");
+    expect(result.retrievals[0]!.sourcePaths).toEqual([
+      "chaos/poor-match.md",
+      "chaos/poor-match.md",
+      "chaos/poor-match.md",
+    ]);
+    expect(result.retrievals[0]!.texts.join("\n")).not.toMatch(/580/);
   });
 
   test("poor scores increment retrieval_below_threshold_total", async () => {

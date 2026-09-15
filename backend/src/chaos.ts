@@ -22,6 +22,12 @@ export const BAD_RETRIEVAL_THRESHOLD = 0.35;
 export const SLOW_TOOL_DELAY_MS = 8_000;
 export const SLOW_TOOL_WARN_MS = 5_000;
 export const BAD_RETRIEVAL_SCORES = [0.31, 0.28, 0.24] as const;
+/** Unrelated chunks — live pgvector hits are not used, so policy text cannot leak through. */
+export const BAD_RETRIEVAL_CHUNKS = [
+  "Facilities note: the third-floor kitchen restocks sparkling water on Tuesdays. No lending rules.",
+  "IT helpdesk hours are 09:00–17:00. Password resets require a ticket. This is not a credit overlay.",
+  "Parking garage closes at 22:00 on weekends. This document does not discuss mortgage eligibility.",
+] as const;
 export const TOKEN_HEAVY_TARGET_TOKENS = 80_000;
 export const LLM_TIMEOUT_MS = 1;
 export const TOOL_CONNECTION_REFUSED = "Connection refused";
@@ -60,7 +66,7 @@ export async function applyToolChaos(): Promise<void> {
   }
 }
 
-/** True when this request should return the canned poor-similarity band. */
+/** True when this request should return canned unrelated chunks at poor scores. */
 export function isBadRetrievalChaos(): boolean {
   return currentRequestContext()?.scenario === "bad_retrieval";
 }

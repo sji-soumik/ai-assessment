@@ -107,6 +107,7 @@ function LLMPanel({ calls }: { calls: LLMCallRecord[] }) {
             <Row label="Input tokens" value={String(call.inputTokens)} />
             <Row label="Output tokens" value={String(call.outputTokens)} />
             <Row label="Latency" value={`${call.latencyMs}ms`} mono />
+            <Row label="Cost" value={`$${call.costUsd.toFixed(6)}`} mono />
           </dl>
           {call.input && <Block label="Input" text={call.input} />}
           {call.output && <Block label="Output" text={call.output} />}

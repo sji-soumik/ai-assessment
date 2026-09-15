@@ -42,7 +42,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(retrieval_below_threshold_total[5m]) / clamp_min(sum(rate(retrieval_requests_total[5m])), 1e-9)",
+          "expr": "sum(rate(retrieval_below_threshold_total[5m])) / clamp_min(sum(rate(retrieval_requests_total[5m])), 1e-9)",
           "legendFormat": "bad retrievals"
         }
       ]
@@ -62,7 +62,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(agent_groundedness_total{verdict=\"ungrounded\"}[5m])) / clamp_min(sum(rate(agent_groundedness_total{verdict=~\"grounded|ungrounded\"}[5m])), 1e-9)",
+          "expr": "(sum(rate(agent_groundedness_total{verdict=\"ungrounded\"}[5m])) or on() vector(0)) / clamp_min(sum(rate(agent_groundedness_total{verdict=~\"grounded|ungrounded\"}[5m])), 1e-9)",
           "legendFormat": "ungrounded (LLM-as-judge)"
         }
       ]
@@ -78,5 +78,5 @@
   "timezone": "browser",
   "title": "Quality",
   "uid": "agent-quality",
-  "version": 1
+  "version": 2
 }

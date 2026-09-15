@@ -1,5 +1,4 @@
 import { LLM_TIMEOUT_MESSAGE, retrievalQuality, SLOW_TOOL_WARN_MS } from "../chaos";
-import { llmCostUsd } from "./cost";
 import type { LLMCallRecord, RetrievalRecord, ToolCallRecord } from "../agent/state";
 
 export interface TraceTreeInput {
@@ -17,12 +16,11 @@ function formatLatency(ms: number): string {
 }
 
 function llmAttrs(call: LLMCallRecord): string[] {
-  const cost = llmCostUsd(call.inputTokens, call.outputTokens);
   const lines = [
     `Model: ${call.model}`,
     `Tokens: ${call.inputTokens} in / ${call.outputTokens} out`,
     `Latency: ${formatLatency(call.latencyMs)}`,
-    `Cost: $${cost.toFixed(6)}`,
+    `Cost: $${call.costUsd.toFixed(6)}`,
   ];
   if (call.status === "error") {
     lines.push("Status: ERROR");

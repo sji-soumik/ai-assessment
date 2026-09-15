@@ -6,7 +6,7 @@ export type AgentMessage = BaseMessage<MessageStructure<MessageToolSet>, Message
 
 /**
  * Internal capture of a single LLM call (Phase 2 requirement):
- * model, input, output, input tokens, output tokens, latency, error.
+ * model, input, output, input tokens, output tokens, latency, cost, error.
  * Plain data in graph state + console — telemetry export arrives in Phase 6+.
  */
 export interface LLMCallRecord {
@@ -18,6 +18,8 @@ export interface LLMCallRecord {
   inputTokens: number;
   outputTokens: number;
   latencyMs: number;
+  /** USD at gpt-4o list rates (`obs/cost.ts`). */
+  costUsd: number;
   status: "success" | "error";
   error?: string;
 }

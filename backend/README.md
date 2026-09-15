@@ -6,7 +6,9 @@ TypeScript LangGraph mortgage agent. Setup, API, and current status live in the 
 bun install
 cp .env.example .env   # set OPENAI_API_KEY
 bun run dev            # http://localhost:3000
-bun run chat "What is the current base rate?"
+curl -s http://localhost:3000/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"What is the current base rate?"}'
 bun test
 ```
 

@@ -18,7 +18,7 @@ const SCENARIOS: { id: string; label: string }[] = [
   { id: "slow_tool", label: "Slow tool (8s)" },
   { id: "tool_failure", label: "Tool failure" },
   { id: "bad_retrieval", label: "Bad retrieval" },
-  { id: "token_heavy", label: "Token-heavy (~$0.40)" },
+  { id: "token_heavy", label: "Token-heavy (~$0.20)" },
   { id: "llm_timeout", label: "LLM timeout" },
 ];
 
@@ -119,7 +119,7 @@ export function ChatApp() {
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
           <div>
             <h1 className="text-sm font-semibold text-zinc-100">Mortgage Agent</h1>
-            <p className="text-[11px] text-zinc-500">LangGraph · Claude · RAG · Tools</p>
+            <p className="text-[11px] text-zinc-500">LangGraph · gpt-4o · RAG · Tools</p>
           </div>
           <BackendStatus ok={backendOk} onRefresh={() => void refreshHealth()} />
         </header>
@@ -286,8 +286,8 @@ export function ChatApp() {
               </div>
             ) : (
               <p className="p-4 text-xs leading-relaxed text-zinc-600">
-                LLM tokens, RAG chunks (ids + scores), and tool args/results appear here after each
-                response.
+                LLM tokens, cost, RAG chunks (ids + scores), and tool args/results appear here after
+                each response.
               </p>
             )}
           </div>

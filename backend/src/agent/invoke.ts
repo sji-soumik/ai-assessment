@@ -7,7 +7,6 @@ import {
   type ChaosScenario,
 } from "../chaos";
 import { makeModel } from "../llm";
-import { llmCostUsd } from "../obs/cost";
 import { evaluateGroundedness } from "../obs/eval";
 import { isLlmTimeout, recordAgentRequest, recordGroundedness, sanitizeUserId } from "../obs/metrics";
 import { SpanName } from "../obs/names";
@@ -56,10 +55,7 @@ export class AgentInvokeError extends Error {
 }
 
 function requestCostUsd(state: Pick<AgentState, "llmCalls">): number {
-  return state.llmCalls.reduce(
-    (sum, call) => sum + llmCostUsd(call.inputTokens, call.outputTokens),
-    0,
-  );
+  return state.llmCalls.reduce((sum, call) => sum + call.costUsd, 0);
 }
 
 function resolveGraph(
