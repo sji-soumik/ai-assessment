@@ -9,6 +9,7 @@ export interface LLMCallRecord {
   inputTokens: number;
   outputTokens: number;
   latencyMs: number;
+  costUsd: number;
   status: "success" | "error";
   error?: string;
 }

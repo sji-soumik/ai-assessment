@@ -233,6 +233,7 @@ describe("Phase 16 verification (invokeAgent)", () => {
     await flushTelemetry();
 
     expect(result.llmCalls[0]!.inputTokens).toBe(80_000);
+    expect(result.llmCalls[0]!.costUsd).toBeGreaterThan(0);
     const llm = memory.getFinishedSpans().find((s) => s.name === SpanName.llmCall)!;
     expect(llm.attributes["gen_ai.usage.input_tokens"]).toBe(80_000);
     expect(Number(llm.attributes["llm.cost_usd"])).toBeGreaterThan(0);
@@ -310,6 +311,8 @@ describe("Phase 16 verification (invokeAgent)", () => {
     const retrieval = memory.getFinishedSpans().find((s) => s.name === SpanName.retrieval)!;
     expect(retrieval.attributes["retrieval.quality"]).toBe("poor");
     expect(retrieval.attributes["retrieval.similarity_scores"]).toBe("[0.31,0.28,0.24]");
+    expect(String(retrieval.attributes["retrieval.source_paths"])).toContain("chaos/poor-match.md");
+    expect(String(retrieval.attributes["retrieval.documents"] ?? "")).not.toMatch(/580/);
   });
 });
 

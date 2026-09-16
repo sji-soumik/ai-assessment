@@ -2,8 +2,7 @@ import { AIMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { BaseChatModel as BaseChatModelClass } from "@langchain/core/language_models/chat_models";
 import type { ChatResult } from "@langchain/core/outputs";
-import { toAgentMessage } from "../src/agent/messages";
-import { textOf } from "../src/agent/nodes/llm";
+import { textOf, toAgentMessage } from "../src/agent/messages";
 
 /**
  * Test double that returns a predefined sequence of AIMessages across invoke() calls.

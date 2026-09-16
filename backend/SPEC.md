@@ -6,10 +6,10 @@ Rule #1 from the plan: **build the working agent first — no observability unti
 ## Status tracker
 
 - [x] **P1 — Agent core**: LangGraph state, agent node, LLM, conditional routing, respond node, basic conversation
-- [x] **P2 — LLM calling**: real Claude call; capture model/input/output/tokens/latency/error internally (state + console, no telemetry)
+- [x] **P2 — LLM calling**: real OpenAI `gpt-4o` call; capture model/input/output/tokens/latency/**cost**/error internally (state + console, no telemetry)
 - [x] **P3 — Retrieval/RAG**: PostgreSQL + pgvector; ingestion, chunking, embeddings, similarity search, top-K → LLM. Captures query/topK/chunk+document ids/scores/latency into `state.retrievals`
 - [x] **P4 — Tool calling**: `getMortgageRate()` (in-process rate table; `getRateSheet` deliberately dropped — see decisions). Captures name/args/start/end/latency/result/status/error into `state.toolCalls`
-- [x] **P5 — Complete flow**: one request triggers multiple AI operations (LLM → retrieval → tool → LLM reasoning → answer). Flow summary in `state` capture + `flow` API field + CLI printout
+- [x] **P5 — Complete flow**: one request triggers multiple AI operations (LLM → retrieval → tool → LLM reasoning → answer). Flow summary in `state` capture + `flow` API field
 - [x] **P6 — OpenTelemetry**: root trace + child spans (`agent`, `llm.call`, `retrieval`, `tool.call`, `llm.reasoning`, `final.response`) via explicit `withSpan` wrappers in `src/obs/`
 - [x] **P7 — LLM span attrs**: model, provider, tokens (in/out/total), latency, request/response, status, error, **cost** (`gen_ai.*` + `llm.cost_usd`)
 - [x] **P8 — Retrieval span attrs**: query, top_k, document_count, document_ids, similarity_scores, latency, status
@@ -28,9 +28,9 @@ Rule #1 from the plan: **build the working agent first — no observability unti
 
 | Topic | Decision | Rationale |
 |---|---|---|
-| LLM | **Claude `claude-opus-5`** via `@langchain/anthropic` | Plan's "Gemini/OpenAI" is illustrative; this project standardizes on Claude (see AGENT.md guardrails: no `temperature`/`top_p`/`top_k` — 400 on Opus 5). Cost computed at $5/M input, $25/M output |
+| LLM | **OpenAI `gpt-4o`** via `@langchain/openai` | Plan's "Gemini/OpenAI" is illustrative; this project standardizes on gpt-4o (`src/llm.ts` is the only construction point). Cost computed at $2.50/M input, $10/M output |
 | Vector DB | **PostgreSQL + pgvector** (`pgvector/pgvector:pg17` in `ops/docker-compose.yml`, Phase 3) | Explicitly prescribed by the plan |
-| Embeddings | **Local deterministic hash-n-gram embeddings (512-dim)** stored in pgvector | Zero extra API keys; deterministic `bad_retrieval` demo. Swap point for Voyage/other documented in code |
+| Embeddings | **OpenAI `text-embedding-3-small` (512-dim)** stored in pgvector | Same `OPENAI_API_KEY` as the LLM; 512-dim matches the pgvector column. `bad_retrieval` returns canned unrelated chunks and scores, not live pgvector hits |
 | Retrieval unit | **Chunk**, not whole Document | Similarity search returns embedded slices; each hit carries its chunk id and source document id. Prevents "4 documents" that are really 4 slices of one file (see `CONTEXT.md`) |
 | Tool surface | **Only `getMortgageRate({ product?, termYears? })`** — `getRateSheet`/`searchProperty`/`getBorrowerData` dropped | Single live seam for Phase 14 chaos; live rates own the numbers, RAG owns policy, so a second rate tool would duplicate one or the other |
 | Rate source | **In-process rate table**, not HTTP/Postgres | Isolates the tool from the vector store; chaos is a function seam (see `docs/adr/0001-in-process-rate-table.md`) |
@@ -62,7 +62,7 @@ Span tree per request (P6–P9): `agent` → { `llm.call`, `retrieval`, `tool.ca
 
 | Phase | Gate |
 |---|---|
-| P1–P2 | `bun run chat "What is the current base rate?"` → "The base rate is…"-style reply; console shows model, tokens in/out, latency; `bun test` green with fake-model graph tests |
+| P1–P2 | `POST /chat` with `"What is the current base rate?"` → "The base rate is…"-style reply; response includes model, tokens in/out, latency, cost in `llmCalls`; `bun test` green with fake-model graph tests |
 | P3 | `retrieve` returns top-K docs with similarity scores from pgvector; ingestion script idempotent |
 | P4 | Agent answers a rate question via `getMortgageRate` round-trip (≥2 LLM calls) |
 | P5 | One request demonstrably triggers LLM → retrieval → tool → LLM reasoning before answering |
@@ -77,5 +77,5 @@ Span tree per request (P6–P9): `agent` → { `llm.call`, `retrieval`, `tool.ca
 
 ## Environment & ports
 
-`ANTHROPIC_API_KEY` (required) · `DATABASE_URL` (P3, default `postgres://postgres:postgres@localhost:5432/agent`) · `OTEL_EXPORTER_OTLP_ENDPOINT` (P6, default `http://localhost:6006/v1/traces`) · `OTEL_SDK_DISABLED=true` (optional; noop SDK when Phoenix is down) · `PORT` (3000). Optional `userId` on `POST /chat` (bounded `[a-zA-Z0-9_-]{1,32}`, else `anonymous`) for Cost/user.
+`OPENAI_API_KEY` (required) · `DATABASE_URL` (P3, default `postgres://postgres:postgres@localhost:5432/agent`) · `OTEL_EXPORTER_OTLP_ENDPOINT` (P6, default `http://localhost:6006/v1/traces`) · `OTEL_SDK_DISABLED=true` (optional; noop SDK when Phoenix is down) · `PORT` (3000). Optional `userId` on `POST /chat` (bounded `[a-zA-Z0-9_-]{1,32}`, else `anonymous`) for Cost/user.
 Ports: app **3000** · Phoenix **6006** · Postgres **5432** · Prometheus **9090** · Grafana **3002** (frontend keeps **3001**).

@@ -30,6 +30,7 @@ describe("agent graph (fake model)", () => {
     expect(call.purpose).toBe("agent");
     expect(call.model).toBe("gpt-4o");
     expect(call.latencyMs).toBeGreaterThanOrEqual(0);
+    expect(call.costUsd).toBe(0);
     expect(call.output).toBe("ok");
   });
 
@@ -156,6 +157,7 @@ describe("live LLM (auto-skipped without OPENAI_API_KEY)", () => {
       expect(call.inputTokens).toBeGreaterThan(0);
       expect(call.outputTokens).toBeGreaterThan(0);
       expect(call.latencyMs).toBeGreaterThan(0);
+      expect(call.costUsd).toBeGreaterThan(0);
     },
     180_000,
   );

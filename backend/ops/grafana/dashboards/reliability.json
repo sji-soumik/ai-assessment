@@ -98,7 +98,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(llm_timeouts_total[5m]) / clamp_min(sum(rate(llm_requests_total[5m])), 1e-9)",
+          "expr": "sum(rate(llm_timeouts_total[5m])) / clamp_min(sum(rate(llm_requests_total[5m])), 1e-9)",
           "legendFormat": "LLM timeouts"
         }
       ]
@@ -114,5 +114,5 @@
   "timezone": "browser",
   "title": "Reliability",
   "uid": "agent-reliability",
-  "version": 1
+  "version": 2
 }

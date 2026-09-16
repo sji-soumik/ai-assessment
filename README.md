@@ -6,7 +6,7 @@ A TypeScript LangGraph agent for mortgage-lending questions (base rates, product
 
 AI agents are difficult to debug because one user request is not one function call. It fans out into an LLM call, a retrieval, a tool, a reasoning pass, then an answer. When the reply is wrong, slow, or expensive, the failure can hide in any of those steps.
 
-Without a shared trace id you cannot tell whether the 8-second delay was Claude, pgvector, or `getMortgageRate`. Without metrics you cannot see p95 tool latency, timeout rate, or a cost spike from an 80k-token prompt. This project instruments every step so a single request can be followed from the HTTP edge to Phoenix and Grafana.
+Without a shared trace id you cannot tell whether the 8-second delay was gpt-4o, pgvector, or `getMortgageRate`. Without metrics you cannot see p95 tool latency, timeout rate, or a cost spike from an 80k-token prompt. This project instruments every step so a single request can be followed from the HTTP edge to Phoenix and Grafana.
 
 ## 2. Architecture
 
@@ -63,15 +63,15 @@ Example: `Request ID: req-123` → `Trace ID: abc…` → Agent `span-001` → L
 | Grafana | Four provisioned dashboards on :3002 | Performance, Cost, Reliability, Quality — the four questions you ask after a failure test. |
 | LangGraph | Typed state graph | The agent → retrieval/tool → reasoning loop is explicit, so each node is a span seam. |
 | Runtime | Bun | Spec: `Bun.serve` is not used for HTTP (Express is already the server), but `bun test` / `bun run` / auto-loaded `.env`. |
-| LLM | Claude `claude-opus-5` | Single construction point in `src/llm.ts`. Do not set `temperature` / `top_p` / `top_k`. Cost: **$5 / 1M input**, **$25 / 1M output**. |
-| Vector DB | PostgreSQL + pgvector | Plan requirement. Local 512-dim hash-n-gram embeddings (no extra API keys). |
+| LLM | OpenAI `gpt-4o` | Single construction point in `src/llm.ts`. Cost: **$2.50 / 1M input**, **$10 / 1M output**. |
+| Vector DB | PostgreSQL + pgvector | Plan requirement. OpenAI `text-embedding-3-small` embeddings at 512-dim. |
 | Tool | In-process `getMortgageRate` | Isolates live rates from retrieval so “connection refused” is a tool failure, not a Postgres outage. |
 
 Chaos is opt-in (`scenario`). No scenario → the same singleton graph, 30s LLM timeout, live scores, and instant rate lookup as Phases 1–13.
 
 ## 4. Trace example
 
-Happy-path complete flow (`bun run chat "FHA overlay and 30-year FHA rate?"`):
+Happy-path complete flow (`POST /chat` with `"FHA overlay and 30-year FHA rate?"`):
 
 ```
 Request ID: req-7f3a…
@@ -80,10 +80,10 @@ Trace ID: abc123def456…
 ├── Agent
 │
 ├── LLM Call
-│   ├── Model: claude-opus-5
+│   ├── Model: gpt-4o
 │   ├── Tokens: 412 in / 88 out
 │   ├── Latency: 1800ms
-│   └── Cost: $0.004260
+│   └── Cost: $0.001910
 │
 ├── Retrieval
 │   ├── Query: FHA credit overlay
@@ -120,7 +120,7 @@ Failure-tree excerpts (Phase 14):
 
 ├── LLM Call
 │   ├── Tokens: 80000+ in
-│   └── Cost: $0.40…                ← token_heavy
+│   └── Cost: $0.20…                ← token_heavy
 
 ├── LLM Call
 │   ├── Status: ERROR
@@ -160,8 +160,8 @@ Run from `backend/` with compose up (Postgres + Phoenix + Prometheus + Grafana) 
 ```bash
 bun run demo slow_tool      # ~8s tool span; Grafana tool p95 ↑
 bun run demo tool_failure   # Tool ERROR / Connection refused; request still answers
-bun run demo bad_retrieval  # scores 0.31 / 0.28 / 0.24; Quality: Poor
-bun run demo token_heavy    # ~80k input tokens; ~$0.40 at Opus 5 rates
+bun run demo bad_retrieval  # scores 0.31 / 0.28 / 0.24; unrelated chunks; Quality: Poor
+bun run demo token_heavy    # ~80k input tokens; ~$0.20 at gpt-4o rates
 bun run demo llm_timeout    # LLM ERROR / Request timeout; HTTP 500 with ids
 ```
 
@@ -178,7 +178,7 @@ curl -s http://localhost:3000/chat \
 |---|---|---|---|
 | `slow_tool` | `getMortgageRate` lookup | Tool ~8.2s ⚠️ | Performance / tool p95 |
 | `tool_failure` | same lookup throws | Tool ERROR, Connection refused | Reliability / tool errors |
-| `bad_retrieval` | `similaritySearch` scores | Quality: Poor | Quality / bad retrieval rate |
+| `bad_retrieval` | `similaritySearch` docs + scores | Quality: Poor, unrelated chunks | Quality / bad retrieval rate |
 | `token_heavy` | agent system-prompt pad | 80k+ input tokens, cost | Cost / tokens |
 | `llm_timeout` | per-request 1ms LLM client | LLM ERROR, Request timeout | Reliability / timeout rate |
 
@@ -190,7 +190,7 @@ Observability turned five “the agent is broken” reports into five different 
 
 1. **Slow tool** — the LLM spans were normal; the tool span was 8 seconds. p95 tool latency on Performance confirmed it was not a model regression.
 2. **Tool failure** — `Connection refused` stayed on the tool span with ERROR status. The request still completed because tool errors are data (`ToolMessage`); the model reported it could not quote a rate instead of inventing 6.1%.
-3. **Bad retrieval** — similarity 0.31 / 0.28 / 0.24 is below the 0.35 threshold. Quality went Poor *before* the answer went off-policy. The Quality dashboard’s bad-retrieval rate moved; groundedness judge is the second line of defense.
+3. **Bad retrieval** — similarity 0.31 / 0.28 / 0.24 is below the 0.35 threshold, and the chunks are canned unrelated text (not Product Overlays). Quality went Poor *before* the answer went off-policy. The Quality dashboard’s bad-retrieval rate moved; groundedness judge is the second line of defense.
 4. **Token-heavy prompt** — input tokens jumped to 80k+ and cost followed. Cost-by-user (`userId`) shows which caller paid.
 5. **LLM timeout** — the only request-failing failure. The LLM span is ERROR / Request timeout; `llm_timeouts_total` increments; `x-request-id` and `x-trace-id` are still returned on the 500 so you can open the same trace in Phoenix.
 
@@ -199,7 +199,7 @@ Correlation ids are what make that last step possible: one `req-…` in the log 
 ## Prerequisites
 
 - [Bun](https://bun.sh) v1.3+
-- An [Anthropic API key](https://console.anthropic.com/) for live chat (tests without the key still run against a fake model)
+- An [OpenAI API key](https://platform.openai.com/api-keys) for live chat (tests without the key still run against a fake model)
 - Docker (Postgres + pgvector, Phoenix, Prometheus, Grafana)
 
 ## Setup
@@ -208,7 +208,7 @@ Correlation ids are what make that last step possible: one `req-…` in the log 
 cd backend
 bun install
 cp .env.example .env
-# set ANTHROPIC_API_KEY
+# set OPENAI_API_KEY
 
 docker compose -f ops/docker-compose.yml up -d
 bun run ingest
@@ -222,8 +222,9 @@ From `backend/`:
 
 ```bash
 bun run dev                                          # HTTP :3000
-bun run chat "What is the current base rate?"
-bun run chat -- --user alice --scenario slow_tool "30-year FHA rate?"
+curl -s http://localhost:3000/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"What is the current base rate?","userId":"demo"}'
 bun run demo tool_failure
 bun test                                             # fake-model suite; live tests skip without keys
 ```
@@ -243,7 +244,7 @@ npm run dev   # :3001 → backend :3000
 
 **`GET /health`** `{ "ok": true }`
 
-**`GET /metrics`** Prometheus text (scraped every 5s). The one-shot CLI does not keep a scrape target alive.
+**`GET /metrics`** Prometheus text (scraped every 5s). Keep `bun run dev` running so Grafana has a scrape target.
 
 **`POST /chat`**
 
@@ -276,7 +277,6 @@ ai-assessment/
     │   ├── demo.ts           # bun run demo <scenario>
     │   ├── llm.ts
     │   ├── server.ts         # POST /chat, GET /health, GET /metrics
-    │   ├── chat.ts
     │   ├── rag/
     │   ├── tools/
     │   ├── obs/              # includes requestContext.ts (P15)

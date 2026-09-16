@@ -26,7 +26,7 @@ const TOKEN_HEAVY_COST_USD = ((TOKEN_HEAVY_TARGET_TOKENS / 1_000_000) * PRICING.
 const EXPECTED: Record<ChaosScenario, string> = {
   slow_tool: "Tool Call latency ~8s (p95 ↑ on Grafana Performance)",
   tool_failure: "Tool Status: ERROR, Error: Connection refused (request still completes)",
-  bad_retrieval: "Retrieval Quality: Poor, scores 0.31 / 0.28 / 0.24",
+  bad_retrieval: "Retrieval Quality: Poor, scores 0.31 / 0.28 / 0.24, unrelated chunks (not live policy text)",
   token_heavy: `LLM input tokens ${TOKEN_HEAVY_TARGET_TOKENS.toLocaleString()}+ and cost spike (Grafana Cost). ~$${TOKEN_HEAVY_COST_USD} at ${MODEL_ID} rates.`,
   llm_timeout: "LLM Status: ERROR, Error: Request timeout (request fails)",
 };

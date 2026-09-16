@@ -1,20 +1,20 @@
-import { AIMessage, SystemMessage } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 import type {
   BaseChatModel,
   BaseChatModelCallOptions,
 } from "@langchain/core/language_models/chat_models";
-import type { BaseMessage } from "@langchain/core/messages";
 import { LLM_TIMEOUT_MESSAGE, tokenHeavyPadding } from "../../chaos";
 import { MODEL_ID, PROVIDER } from "../../llm";
+import { llmCostUsd } from "../../obs/cost";
 import { setLlmSpanAttrs, truncate } from "../../obs/attrs";
 import { isLlmTimeout, recordLlmCall } from "../../obs/metrics";
 import { llmSpanName } from "../../obs/names";
 import { currentTraceId } from "../../obs/otel";
 import { correlationPrefix } from "../../obs/requestContext";
 import { withSpan } from "../../obs/spans";
-import { toAgentMessage } from "../messages";
+import { textOf, toAgentMessage } from "../messages";
 import { BINDABLE_TOOLS } from "../tools";
-import type { AgentMessage, AgentState, LLMCallRecord } from "../state";
+import type { AgentState, LLMCallRecord } from "../state";
 
 const AGENT_PROMPT = `You are a mortgage-lending assistant for an internal team.
 You answer questions about base rates, mortgage rates, products, and lending policy.
@@ -48,19 +48,16 @@ function systemPrompt(purpose: LLMCallRecord["purpose"]): string {
   return purpose === "reasoning" ? REASONING_PROMPT : AGENT_PROMPT;
 }
 
-export { truncate };
-
-export function textOf(message: AgentMessage | undefined): string {
-  if (!message) return "";
-  return typeof message.content === "string" ? message.content : JSON.stringify(message.content);
-}
-
 // The base chat-model type doesn't declare a `tools` call option, but concrete
 // models (ChatOpenAI) accept one and test doubles ignore it. Passing tools
 // this way keeps `model.invoke` the single seam that tests can stub, unlike
 // bindTools which wraps the model in a new runnable.
 const withTools = (options: { tools: typeof BINDABLE_TOOLS }): BaseChatModelCallOptions =>
   options as unknown as BaseChatModelCallOptions;
+
+function captureLlmCall(fields: Omit<LLMCallRecord, "costUsd">): LLMCallRecord {
+  return { ...fields, costUsd: llmCostUsd(fields.inputTokens, fields.outputTokens) };
+}
 
 /** Shared LLM invocation with internal capture; wrapped in an OTel span (Phase 6+). */
 export function makeLlmNode(model: BaseChatModel, purpose: LLMCallRecord["purpose"]) {
@@ -77,7 +74,7 @@ export function makeLlmNode(model: BaseChatModel, purpose: LLMCallRecord["purpos
 
       try {
         const response = (await model.invoke(input, withTools({ tools: BINDABLE_TOOLS }))) as AIMessage;
-        const record: LLMCallRecord = {
+        const record = captureLlmCall({
           purpose,
           model: MODEL_ID,
           provider: PROVIDER,
@@ -87,11 +84,11 @@ export function makeLlmNode(model: BaseChatModel, purpose: LLMCallRecord["purpos
           outputTokens: response.usage_metadata?.output_tokens ?? 0,
           latencyMs: Math.round(performance.now() - started),
           status: "success",
-        };
+        });
         setLlmSpanAttrs(span, record);
         recordLlmCall(record);
         console.log(
-          `${prefix()}[llm] ${record.purpose} ok model=${record.model} tokens=${record.inputTokens}->${record.outputTokens} latency=${record.latencyMs}ms`,
+          `${prefix()}[llm] ${record.purpose} ok model=${record.model} tokens=${record.inputTokens}->${record.outputTokens} cost=$${record.costUsd.toFixed(6)} latency=${record.latencyMs}ms`,
         );
         return { messages: [toAgentMessage(response)], llmCalls: [record] };
       } catch (err) {
@@ -102,7 +99,7 @@ export function makeLlmNode(model: BaseChatModel, purpose: LLMCallRecord["purpos
           : err instanceof Error
             ? err.message
             : String(err);
-        const record: LLMCallRecord = {
+        const record = captureLlmCall({
           purpose,
           model: MODEL_ID,
           provider: PROVIDER,
@@ -113,7 +110,7 @@ export function makeLlmNode(model: BaseChatModel, purpose: LLMCallRecord["purpos
           latencyMs,
           status: "error",
           error: message,
-        };
+        });
         setLlmSpanAttrs(span, record);
         recordLlmCall(record, timedOut);
         console.error(`${prefix()}[llm] ${purpose} error after ${latencyMs}ms: ${message}`);

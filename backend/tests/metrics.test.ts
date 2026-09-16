@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
+import { BAD_RETRIEVAL_THRESHOLD } from "../src/chaos";
 import {
-  BAD_RETRIEVAL_THRESHOLD,
   isLlmTimeout,
   recordAgentRequest,
   recordGroundedness,
@@ -12,6 +12,7 @@ import {
   sanitizeUserId,
 } from "../src/obs/metrics";
 import type { LLMCallRecord, RetrievalRecord, ToolCallRecord } from "../src/agent/state";
+import { llmCostUsd } from "../src/obs/cost";
 
 const SPEC_METRIC_NAMES = [
   "agent_requests_total",
@@ -34,15 +35,18 @@ const SPEC_METRIC_NAMES = [
 ];
 
 function llm(overrides: Partial<LLMCallRecord> = {}): LLMCallRecord {
+  const inputTokens = overrides.inputTokens ?? 10;
+  const outputTokens = overrides.outputTokens ?? 4;
   return {
     purpose: "agent",
     model: "gpt-4o",
     provider: "openai",
     input: "hi",
     output: "hello",
-    inputTokens: 10,
-    outputTokens: 4,
+    inputTokens,
+    outputTokens,
     latencyMs: 1200,
+    costUsd: llmCostUsd(inputTokens, outputTokens),
     status: "success",
     ...overrides,
   };

@@ -1,6 +1,6 @@
 import { getSql } from "./db";
 import { embed, toVectorLiteral } from "./embeddings";
-import { BAD_RETRIEVAL_SCORES, isBadRetrievalChaos } from "../chaos";
+import { BAD_RETRIEVAL_CHUNKS, BAD_RETRIEVAL_SCORES, isBadRetrievalChaos } from "../chaos";
 
 /** One hit from similarity search: a Chunk plus its source Document. */
 export interface RetrievalHit {
@@ -13,16 +13,13 @@ export interface RetrievalHit {
 
 export const DEFAULT_TOP_K = 4;
 
-function overlayBadRetrieval(hits: RetrievalHit[]): RetrievalHit[] {
+function cannedBadRetrieval(): RetrievalHit[] {
   return BAD_RETRIEVAL_SCORES.map((score, i) => ({
-    ...(hits[i] ?? {
-      chunkId: -(i + 1),
-      documentId: -(i + 1),
-      sourcePath: "chaos/poor-match.md",
-      score,
-      content: "Unrelated fragment: this document does not answer the query.",
-    }),
+    chunkId: -(i + 1),
+    documentId: -(i + 1),
+    sourcePath: "chaos/poor-match.md",
     score,
+    content: BAD_RETRIEVAL_CHUNKS[i]!,
   }));
 }
 
@@ -55,19 +52,14 @@ async function search(query: string, topK: number): Promise<RetrievalHit[]> {
 /**
  * Top-K cosine similarity search over chunk embeddings. Score is
  * `1 - cosine_distance`, so 1.0 is identical and ~0 is unrelated.
- * Phase 14 `bad_retrieval` overlays scores 0.31 / 0.28 / 0.24 (and canned
- * hits if the store is unreachable) so the demo is deterministic.
+ * Phase 14 `bad_retrieval` returns canned unrelated chunks at scores
+ * 0.31 / 0.28 / 0.24 — never live pgvector text — so the demo is deterministic
+ * and the model cannot quote policy from retrieval.
  */
 export async function similaritySearch(
   query: string,
   topK: number = DEFAULT_TOP_K,
 ): Promise<RetrievalHit[]> {
-  if (isBadRetrievalChaos()) {
-    try {
-      return overlayBadRetrieval(await search(query, topK));
-    } catch {
-      return overlayBadRetrieval([]);
-    }
-  }
+  if (isBadRetrievalChaos()) return cannedBadRetrieval();
   return search(query, topK);
 }

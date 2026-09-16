@@ -1,7 +1,6 @@
 import type { Span } from "@opentelemetry/api";
 import { retrievalQuality } from "../chaos";
 import type { LLMCallRecord, RetrievalRecord, ToolCallRecord } from "../agent/state";
-import { llmCostUsd } from "./cost";
 
 const MAX_ATTR_LEN = 600;
 
@@ -20,7 +19,7 @@ export function setLlmSpanAttrs(span: Span, record: LLMCallRecord): void {
     record.inputTokens + record.outputTokens,
   );
   span.setAttribute("llm.latency_ms", record.latencyMs);
-  span.setAttribute("llm.cost_usd", llmCostUsd(record.inputTokens, record.outputTokens));
+  span.setAttribute("llm.cost_usd", record.costUsd);
   span.setAttribute("llm.purpose", record.purpose);
   span.setAttribute("llm.status", record.status);
   if (record.input) span.setAttribute("llm.request", truncate(record.input));

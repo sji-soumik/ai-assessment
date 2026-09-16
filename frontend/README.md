@@ -7,7 +7,7 @@ Next.js UI for the mortgage LangGraph agent. Proxies to the Bun backend via
 
 - Backend running on port **3000** (`cd backend && bun run dev`)
 - For RAG: Postgres + `bun run ingest` (see project README)
-- `ANTHROPIC_API_KEY` set in `backend/.env` for live LLM answers
+- `OPENAI_API_KEY` set in `backend/.env` for live LLM answers
 
 ## Setup
 
@@ -23,6 +23,6 @@ npm run dev   # http://localhost:3001
 - **Chat** — send questions; starter prompts for base rate, FHA overlay, conventional rate
 - **Failure test** dropdown — optional Phase 14 scenario (`slow_tool`, `tool_failure`, `bad_retrieval`, `token_heavy`, `llm_timeout`). Leave on Normal for the happy path.
 - **Agent pipeline** — animated LangGraph path (agent LLM → RAG → tool → reasoning → response)
-- **Internal capture** — tabs for LLM tokens/latency, RAG chunks + similarity scores, tool args/results, raw JSON. Request / trace ids appear on the pipeline badge.
+- **Internal capture** — tabs for LLM tokens/latency/cost, RAG chunks + similarity scores, tool args/results, raw JSON. Request / trace ids appear on the pipeline badge.
 
 Backend capture fields mirrored: `llmCalls`, `retrievals`, `toolCalls`, `durationMs`, `requestId`, `traceId`.

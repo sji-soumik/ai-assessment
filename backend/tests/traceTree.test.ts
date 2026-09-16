@@ -15,6 +15,7 @@ describe("Phase 11 trace tree", () => {
           inputTokens: 10,
           outputTokens: 4,
           latencyMs: 100,
+          costUsd: 0.000065,
           status: "success",
         },
         {
@@ -26,6 +27,7 @@ describe("Phase 11 trace tree", () => {
           inputTokens: 20,
           outputTokens: 8,
           latencyMs: 80,
+          costUsd: 0.00013,
           status: "success",
         },
       ],
@@ -59,7 +61,8 @@ describe("Phase 11 trace tree", () => {
     expect(tree).toContain("Trace ID: abc123");
     expect(tree).toContain("Agent");
     expect(tree).toContain("LLM Call");
-    expect(tree).toContain("Model: gpt-4o");
+    expect(tree).toContain("Latency: 100ms");
+    expect(tree).toContain("Cost: $0.000065");
     expect(tree).toContain("Retrieval");
     expect(tree).toContain("Query: FHA overlay");
     expect(tree).toContain("Documents: product-overlays.md");
@@ -84,6 +87,7 @@ describe("Phase 11 trace tree", () => {
           inputTokens: 80_000,
           outputTokens: 4,
           latencyMs: 30_000,
+          costUsd: 0.20004,
           status: "error",
           error: "Request timeout",
         },

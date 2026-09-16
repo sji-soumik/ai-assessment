@@ -21,7 +21,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(rate(llm_input_tokens_total[5m]) + rate(llm_output_tokens_total[5m])) / clamp_min(sum(rate(agent_requests_total[5m])), 1e-9)",
+          "expr": "sum(rate(llm_input_tokens_total[5m]) + rate(llm_output_tokens_total[5m])) / clamp_min(sum(rate(agent_requests_total[5m])), 1e-9)",
           "legendFormat": "tokens/request"
         }
       ]
@@ -97,7 +97,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(llm_cost_dollars_total[5m]) / clamp_min(sum(rate(agent_requests_total[5m])), 1e-9)",
+          "expr": "sum(rate(llm_cost_dollars_total[5m])) / clamp_min(sum(rate(agent_requests_total[5m])), 1e-9)",
           "legendFormat": "USD/request"
         }
       ]
@@ -151,5 +151,5 @@
   "timezone": "browser",
   "title": "Cost",
   "uid": "agent-cost",
-  "version": 1
+  "version": 2
 }
